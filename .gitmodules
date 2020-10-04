@@ -1,0 +1,3 @@
+[submodule "lib/vtparse"]
+	path = lib/vtparse
+	url = git@github.com:caseman/vtparse.git

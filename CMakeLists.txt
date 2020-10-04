@@ -7,9 +7,16 @@ set(CMAKE_C_STANDARD 99)
 include_directories(
     include
     src
+    lib/vtparse
 )
 configure_file(src/tersh.h.in include/tersh.h)
 add_library(lineedit STATIC src/lineedit.h src/lineedit.c)
+add_library(vtparse STATIC 
+    lib/vtparse/vtparse.h 
+    lib/vtparse/vtparse.c 
+    lib/vtparse/vtparse_table.h
+    lib/vtparse/vtparse_table.c 
+)
 
 set(RESOURCE_FILES
 )
@@ -36,7 +43,7 @@ IF(APPLE)
 ENDIF(APPLE)
 # TODO Linux, etc.
 
-target_link_libraries(tersh lineedit
+target_link_libraries(tersh lineedit vtparse
     ${BEARLIBTERMINAL_LIB}
 )
 target_include_directories(tersh PUBLIC
