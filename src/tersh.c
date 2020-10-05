@@ -5,6 +5,7 @@
 #include "BearLibTerminal.h"
 #include "tersh.h"
 #include "lineedit.h"
+#include "vterm.h"
 
 #define curs_blink 500
 
@@ -20,6 +21,10 @@ int main(int argc, char* argv[]) {
         dirpath
     );
     terminal_refresh();
+
+    vterm_t vt;
+    vterm_init(&vt, 0, 0, terminal_state(TK_WIDTH), terminal_state(TK_HEIGHT)-1);
+    unsigned char chbuf[256];
 
     lineedit led;
     lineedit_init(&led);
@@ -46,6 +51,18 @@ int main(int argc, char* argv[]) {
                 lineedit_draw(&led);
                 terminal_refresh();
                 curs_time = 0;
+            } else if (led_state == LINEEDIT_CONFIRM) {
+                int i = 0;
+                for (;i < led.len && i < 255; i++) {
+                    chbuf[i] = led.buf[i];
+                }
+                chbuf[i+1] = 0;
+                vterm_write(&vt, chbuf, i+1);
+                vterm_draw(&vt);
+                led.len = 0;
+                *(led.buf) = 0;
+                lineedit_draw(&led);
+                terminal_refresh();
             }
         }
     }
