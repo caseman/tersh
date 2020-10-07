@@ -7,7 +7,6 @@ set(CMAKE_C_STANDARD 99)
 include_directories(
     include
     src
-    lib/vtparse
 )
 configure_file(src/tersh.h.in include/tersh.h)
 add_library(vec STATIC src/vec.h src/vec.c)

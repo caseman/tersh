@@ -13,4 +13,5 @@ int lineedit_init(lineedit *le);
 int lineedit_insert(lineedit *le, wchar_t ch);
 int lineedit_handle(lineedit *le, int event);
 void lineedit_blink(lineedit *le);
+void lineedit_clear(lineedit *le);
 int lineedit_draw(lineedit *le);

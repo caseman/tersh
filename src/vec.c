@@ -36,10 +36,16 @@ int vec_reserve_(char **data, int *length, int *capacity, int memsz, int n) {
 int vec_reserve_po2_(
   char **data, int *length, int *capacity, int memsz, int n
 ) {
-  int n2 = 1;
   if (n == 0) return 0;
-  while (n2 < n) n2 <<= 1;
-  return vec_reserve_(data, length, capacity, memsz, n2);
+  // Round up to the next power of 2
+  n--;
+  n |= n >> 1;
+  n |= n >> 2;
+  n |= n >> 4;
+  n |= n >> 8;
+  n |= n >> 16;
+  n++;
+  return vec_reserve_(data, length, capacity, memsz, n);
 }
 
 
@@ -72,6 +78,15 @@ int vec_insert_(char **data, int *length, int *capacity, int memsz,
   return 0;
 }
 
+int vec_push_zeros_(char **data, int *length, int *capacity, int memsz,
+                 int count
+) {
+  int err = vec_reserve_po2_(data, length, capacity, memsz, *length + count);
+  if (err) return err;
+  memset(*data + *length * memsz, 0, count * memsz);
+  *length += count;
+  return 0;
+}
 
 void vec_splice_(char **data, int *length, int *capacity, int memsz,
                  int start, int count

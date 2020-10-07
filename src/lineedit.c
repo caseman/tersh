@@ -29,9 +29,8 @@ int lineedit_insert(lineedit *le, wchar_t ch) {
     for (wchar_t *c = le->buf+le->len; c > le->buf+le->curs; c--) {
         *c = *(c - 1);
     }
-    *(le->buf+le->curs) = ch;
-    *(le->buf+le->len+1) = 0;
-    le->curs++;
+    le->buf[le->curs++] = ch;
+    le->buf[le->curs] = 0;
     return 0;
 }
 
@@ -66,6 +65,13 @@ int lineedit_handle(lineedit *le, int event) {
         return LINEEDIT_CHANGED;
     }
     return LINEEDIT_UNCHANGED;
+}
+
+void lineedit_clear(lineedit *le) {
+    le->len = 0;
+    le->curs = 0;
+    le->curs_vis = 1;
+    le->buf[0] = 0;
 }
 
 static void draw_curs(lineedit *le, int term_w, int term_h, int le_h) {

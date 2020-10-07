@@ -20,7 +20,6 @@ int main(int argc, char* argv[]) {
         "input: filter={keyboard}",
         dirpath
     );
-    terminal_refresh();
 
     vterm_t vt;
     vterm_init(&vt, 0, 0, terminal_state(TK_WIDTH), terminal_state(TK_HEIGHT)-1);
@@ -29,6 +28,9 @@ int main(int argc, char* argv[]) {
     lineedit led;
     lineedit_init(&led);
     int curs_time = 0;
+
+    lineedit_draw(&led);
+    terminal_refresh();
 
     while (1) {
         while (!terminal_has_input()) {
@@ -56,11 +58,9 @@ int main(int argc, char* argv[]) {
                 for (;i < led.len && i < 255; i++) {
                     chbuf[i] = led.buf[i];
                 }
-                chbuf[i+1] = 0;
-                vterm_write(&vt, chbuf, i+1);
+                vterm_write(&vt, chbuf, i);
                 vterm_draw(&vt);
-                led.len = 0;
-                *(led.buf) = 0;
+                lineedit_clear(&led);
                 lineedit_draw(&led);
                 terminal_refresh();
             }
