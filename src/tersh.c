@@ -58,7 +58,8 @@ int main(int argc, char* argv[]) {
                 for (;i < led.len && i < 255; i++) {
                     chbuf[i] = led.buf[i];
                 }
-                vterm_write(&vt, chbuf, i);
+                chbuf[i] = '\n';
+                vterm_write(&vt, chbuf, i+1);
                 vterm_draw(&vt);
                 lineedit_clear(&led);
                 lineedit_draw(&led);

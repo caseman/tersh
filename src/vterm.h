@@ -35,7 +35,7 @@ typedef vec_t(vterm_cell_t) vec_vterm_cell_t;
 typedef vec_t(unsigned char) vec_uchar_t;
 
 typedef struct {
-    int flags, dirty_count;
+    int flags;
     int left, top, width, height;
     int curs_x, curs_y;
     int lines, scroll_pos;

@@ -5,6 +5,7 @@
 static int add_lines(vterm_t *vt, int count) {
     if (count <= 0) return 0;
     vt->lines += count;
+    vt->flags |= VT_NEEDS_REDRAW;
     return vec_push_zeros(&vt->line_buf, count * vt->width);
 }
 
@@ -39,7 +40,6 @@ void parser_handle(vtparse_t *parser, vtparse_action_t action, unsigned int ch) 
             }
             vt->curs_x = x;
             vt->curs_y = y;
-            vt->dirty_count += parser->print_buf_len;
             break;
         }
         case VTPARSE_ACTION_EXECUTE:
@@ -48,6 +48,7 @@ void parser_handle(vtparse_t *parser, vtparse_action_t action, unsigned int ch) 
                 case '\n':
                     vt->curs_x = 0;
                     vt->curs_y++;
+                    add_lines(vt, vt->curs_y - vt->lines);
                     return;
             }
         }
