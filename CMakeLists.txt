@@ -9,8 +9,6 @@ include_directories(
     src
 )
 configure_file(src/tersh.h.in include/tersh.h)
-add_library(vec STATIC src/vec.h src/vec.c)
-add_library(lineedit STATIC src/lineedit.h src/lineedit.c)
 add_library(vtparse STATIC 
     lib/vtparse/vtparse.h 
     lib/vtparse/vtparse.c 
@@ -23,7 +21,10 @@ set(RESOURCE_FILES
 
 add_executable(tersh
     src/tersh.c
+    src/vec.c
+    src/lineedit.c
     src/vterm.c
+    src/process.c
     ${RESOURCE_FILES}
 )
 
@@ -44,7 +45,7 @@ IF(APPLE)
 ENDIF(APPLE)
 # TODO Linux, etc.
 
-target_link_libraries(tersh vec lineedit vtparse
+target_link_libraries(tersh vtparse
     ${BEARLIBTERMINAL_LIB}
 )
 target_include_directories(tersh PUBLIC

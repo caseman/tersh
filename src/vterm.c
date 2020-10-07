@@ -99,9 +99,11 @@ unsigned char *vterm_read(vterm_t *vt) {
     }
     return NULL;
 }
-
+/*
 #define tput(x,y,ch)\
     (printf("(%d,%d,%x) ", x, y, ch), terminal_put(x, y, ch))
+*/
+#define tput(x,y,ch) terminal_put(x,y,ch)
 
 void vterm_draw(vterm_t *vt) {
     int full_redraw = vt->flags & VT_NEEDS_REDRAW;
@@ -133,7 +135,7 @@ void vterm_draw(vterm_t *vt) {
         for (int screen_y = vt->top + empty_lines_top; screen_y < bottom_y; screen_y++) {
             if (!(cell->flags & VTCELL_DIRTY_FLAG)) {
                 // Line is not dirty, skip it
-                printf("skipped line @%d ch=%c flags=%x first=%d\n", screen_y, cell->ch, cell->flags, first_line);
+                // printf("skipped line @%d ch=%c flags=%x first=%d\n", screen_y, cell->ch, cell->flags, first_line);
                 cell += vt->width;
                 continue;
             }

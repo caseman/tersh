@@ -1,11 +1,14 @@
+#include <stdlib.h>
+#include <stdio.h>
 #include <unistd.h>
 #include <fcntl.h>
+#include <errno.h>
 #include "process.h"
 
 #define R 0
 #define W 1
 
-int process_fork(process *child) {
+int process_fork(process_t *child) {
     int in_pipe[2], out_pipe[2], err_pipe[2];
     if (pipe(in_pipe) != 0) return -1;
     if (pipe(out_pipe) != 0) return -1;
@@ -35,4 +38,17 @@ int process_fork(process *child) {
     close(out_pipe[W]);
     close(err_pipe[W]);
     return pid;
+}
+
+int process_spawn(process_t *child, const char *file, char *const argv[]) {
+    int pid = process_fork(child);
+    if (pid != 0) return pid;
+    printf("Running: %s", file);
+    int i = 0;
+    while (argv[i]) {
+        printf(" %s", argv[i++]);
+    }
+    printf("\n");
+    execvp(file, argv);
+    exit(errno);
 }
