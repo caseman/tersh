@@ -11,8 +11,26 @@
 #include "vterm.h"
 #include "vec.h"
 #include "process.h"
+#include "widget.h"
 
 #define curs_blink 500
+
+color_t colors[8] = {0xFFFF0000, 0xFF00FF00, 0xFF0000FF, 0xFFFF7700, 0xFF00FFFF,
+                     0xFFBBBBBB, 0xFF444444, 0xFF77FF00};
+static void fill_w(widget_t *w) {
+    printf("widget %d (%d, %d, %d, %d) minw=%d minh=%d\n",
+            w->order, w->left, w->top, w->width, w->height, w->min_width, w->min_height);
+    if (w->order) {
+        terminal_bkcolor(colors[abs(w->order) % 7]);
+        terminal_clear_area(w->left, w->top, w->width, w->height);
+    }
+    int i;
+    widget_t *child;
+    vec_foreach(&w->children, child, i) {
+        if (child->flags & WIDGET_DELETED) continue;
+        fill_w(child);
+    }
+}
 
 int main(int argc, char* argv[]) {
     char *path = strdup(argv[0]);
@@ -20,12 +38,54 @@ int main(int argc, char* argv[]) {
 
     terminal_open();
     terminal_setf(
-        "window: size=80x40, cellsize=auto, resizeable=true, fullscreen=true, title='TERSH';"
+        "window: size=80x40, cellsize=auto, resizeable=true, title='TERSH';"
         "font: /Users/caseyduncan/Library/Fonts/DejaVu Sans Mono for Powerline.ttf, size=13;"
         "input: filter={keyboard}",
         dirpath
     );
 
+    widget_t *main_w = widget_new();
+    main_w->min_width = main_w->max_width = terminal_state(TK_WIDTH);
+    main_w->min_height = main_w->max_height = terminal_state(TK_HEIGHT);
+    main_w->anchor = ANCHOR_BOTTOM;
+    widget_t *cmd_line_w = widget_addx(main_w, 1, ANCHOR_BOTTOM, -1, 2);
+    widget_addx(cmd_line_w, 100, ANCHOR_LEFT, 3, 3);
+    widget_addx(cmd_line_w, 102, ANCHOR_RIGHT, 10, 1);
+    widget_t *scroll_w = widget_addx(main_w, 2, ANCHOR_RIGHT, 1, -1);
+    widget_addx(scroll_w, 201, ANCHOR_TOP, 1, 1);
+    widget_addx(scroll_w, 204, ANCHOR_BOTTOM, 1, 1);
+    widget_addx(main_w, 3, ANCHOR_BOTTOM, -1, 1);
+    widget_t *term_w = widget_addx(main_w, 4, ANCHOR_BOTTOM, -1, -1);
+    widget_layout(main_w, 0, 0, terminal_state(TK_WIDTH), terminal_state(TK_HEIGHT));
+    widget_t *fake_stuff = NULL;
+    int scroll = 0;
+
+    while (1) {
+        terminal_bkcolor(0xFF000000);
+        terminal_clear();
+        fill_w(main_w);
+        terminal_refresh();
+        while (!terminal_has_input()) {
+            terminal_delay(100);
+            if (scroll++ % 20 == 0) {
+                fake_stuff = widget_addx(term_w, -scroll, ANCHOR_BOTTOM, -1, -2);
+            } else if (fake_stuff) {
+                fake_stuff->min_height++;
+            }
+            widget_refresh(term_w);
+            fill_w(main_w);
+            terminal_refresh();
+        }
+        int key = terminal_read();
+        if (key == TK_ESCAPE || key == TK_CLOSE) {
+            terminal_close();
+            exit(0);
+        } else if (key == TK_RESIZED) {
+            main_w->min_width = main_w->max_width = terminal_state(TK_WIDTH);
+            main_w->min_height = main_w->max_height = terminal_state(TK_HEIGHT);
+            widget_layout(main_w, 0, 0, terminal_state(TK_WIDTH), terminal_state(TK_HEIGHT));
+        }
+    }
     vterm_t vt;
     vterm_init(&vt, 0, 0, terminal_state(TK_WIDTH), terminal_state(TK_HEIGHT)-1);
 

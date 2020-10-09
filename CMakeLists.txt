@@ -25,6 +25,7 @@ add_executable(tersh
     src/lineedit.c
     src/vterm.c
     src/process.c
+    src/widget.c
     ${RESOURCE_FILES}
 )
 

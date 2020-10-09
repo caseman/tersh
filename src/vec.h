@@ -19,6 +19,8 @@
 #define vec_t(T)\
   struct { T *data; int length, capacity; }
 
+#define NULL_VEC {0, 0, 0}
+
 #define vec_init(v)\
   memset((v), 0, sizeof(*(v)))
 
@@ -36,6 +38,10 @@
 #define vec_splice(v, start, count)\
   ( vec_splice_(vec_unpack_(v), start, count),\
     (v)->length -= (count) )
+
+#define vec_del(v, idx)\
+  ( vec_splice_(vec_unpack_(v), idx, 1),\
+    (v)->length -= 1 )
 
 #define vec_swapsplice(v, start, count)\
   ( vec_swapsplice_(vec_unpack_(v), start, count),\
