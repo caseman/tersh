@@ -84,9 +84,9 @@ widget_t *widget_addx(widget_t *parent, short order, widget_anchor anchor, int w
 }
 
 static int cmp_widgets(const void* a, const void* b) {
-    widget_t *wa = (widget_t *)a;
-    widget_t *wb = (widget_t *)b;
-    return (wa->order > wb->order) - (wa->order < wb->order);
+    widget_t **wa = (widget_t **)a;
+    widget_t **wb = (widget_t **)b;
+    return ((*wa)->order > (*wb)->order) - ((*wa)->order < (*wb)->order);
 }
 
 static void place_widget(widget_t *w, int left, int top, int right, int bottom) {
