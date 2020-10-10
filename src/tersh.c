@@ -15,23 +15,36 @@
 
 #define curs_blink 500
 
+static void print_w(widget_t *w) {
+    printf("widget %d (%d, %d, %d, %d) minw=%d minh=%d\n",
+            w->order, w->left, w->top, w->width, w->height, w->min_width, w->min_height);
+}
+
+
 color_t colors[8] = {0xFFFF0000, 0xFF00FF00, 0xFF0000FF, 0xFFFF7700, 0xFF00FFFF,
                      0xFFBBBBBB, 0xFF444444, 0xFF77FF00};
 static void fill_w(widget_t *w) {
-    printf("widget %d (%d, %d, %d, %d) minw=%d minh=%d\n",
-            w->order, w->left, w->top, w->width, w->height, w->min_width, w->min_height);
-    if (w->order) {
-        terminal_bkcolor(colors[abs(w->order) % 7]);
-        terminal_clear_area(w->left, w->top, w->width, w->height);
-    }
+    char str[50];
+    int l, t, r, b;
+    if (w->flags & WIDGET_DELETED) return;
+    print_w(w);
+    l = w->left > 0 ? w->left : 0;
+    t = w->top > 0 ? w->top : 0;
+    r = w->left + w->width;
+    b = w->top + w->height;
+    if (b < t || r < l) return;
+    terminal_bkcolor(colors[abs(w->order) % 8]);
+    printf("clear %d (%d, %d, %d, %d)\n", w->order, l, t, w->width, w->height);
+    terminal_clear_area(l, t, r - l, b - t);
+    terminal_color(0xFF000000);
+    sprintf(str, "%d", w->order);
+    terminal_print(w->left + 1, w->top + w->height - 1, str);
     int i;
     widget_t *child;
     vec_foreach(&w->children, child, i) {
-        if (child->flags & WIDGET_DELETED) continue;
         fill_w(child);
     }
 }
-
 int main(int argc, char* argv[]) {
     char *path = strdup(argv[0]);
     char *dirpath = dirname(path);
@@ -66,14 +79,15 @@ int main(int argc, char* argv[]) {
         fill_w(main_w);
         terminal_refresh();
         while (!terminal_has_input()) {
-            terminal_delay(100);
-            if (scroll++ % 20 == 0) {
+            terminal_delay(10);
+            if (scroll++ % 23 == 0) {
                 fake_stuff = widget_addx(term_w, -scroll, ANCHOR_BOTTOM, -1, -2);
             } else if (fake_stuff) {
                 fake_stuff->min_height++;
             }
             widget_refresh(term_w);
-            fill_w(main_w);
+            fill_w(term_w);
+            print_w(term_w);
             terminal_refresh();
         }
         int key = terminal_read();
