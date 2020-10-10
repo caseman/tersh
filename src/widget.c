@@ -1,46 +1,47 @@
 #include <string.h>
 #include "widget.h"
 
-#define WIDGET_BLOCK_SIZE 128
+#define WIDGET_POOL_SIZE 128
 
-typedef struct w_block widget_block;
+typedef struct w_pool widget_pool;
 
-struct w_block {
+struct w_pool {
     widget_t *new, *free;
-    widget_block *next_block;
-    widget_t widgets[WIDGET_BLOCK_SIZE];
+    widget_pool *next_pool;
+    widget_t widgets[WIDGET_POOL_SIZE];
 };
 
-widget_block *_widget_b = NULL;
+widget_pool *_widget_p = NULL;
 
 void widget_init(widget_t *w) {
     memset(w, 0, sizeof(widget_t));
 }
 
-static widget_block *alloc_w_block() {
-    widget_block *b = calloc(1, sizeof(widget_block));
-    if (b == NULL) return NULL;
-    b->new = b->widgets;
-    if (_widget_b != NULL) {
-        b->free= _widget_b->free;
+static widget_pool *alloc_pool() {
+    widget_pool *p = calloc(1, sizeof(widget_pool));
+    if (p == NULL) return NULL;
+    p->new = p->widgets;
+    if (_widget_p != NULL) {
+        p->free = _widget_p->free;
+        _widget_p->free = NULL;
     }
-    b->next_block = _widget_b;
-    _widget_b = b;
-    return b;
+    p->next_pool = _widget_p;
+    _widget_p = p;
+    return p;
 }
 
 widget_t *widget_new() {
-    if (_widget_b == NULL || 
-        _widget_b->new >= _widget_b->widgets + WIDGET_BLOCK_SIZE) {
-        if (alloc_w_block() == NULL) return NULL;
+    if (_widget_p == NULL || 
+        _widget_p->new >= _widget_p->widgets + WIDGET_POOL_SIZE) {
+        if (alloc_pool() == NULL) return NULL;
     }
-    if (_widget_b->free) {
-        widget_t *recycled = _widget_b->free;
-        _widget_b->free = recycled->parent;
+    if (_widget_p->free) {
+        widget_t *recycled = _widget_p->free;
+        _widget_p->free = recycled->parent;
         widget_init(recycled);
         return recycled;
     }
-    return _widget_b->new++;
+    return _widget_p->new++;
 }
 
 void widget_del(widget_t *w) {
@@ -51,12 +52,13 @@ void widget_del(widget_t *w) {
     }
     w->flags |= WIDGET_DELETED;
     vec_deinit(&w->children);
-    w->parent = _widget_b->free;
-    _widget_b->free = w;
+    w->parent = _widget_p->free;
+    _widget_p->free = w;
 }
 
 widget_t *widget_add(widget_t *parent) {
     widget_t *w = widget_new();
+    if (w == NULL) return NULL;
     w->parent = parent;
     parent->flags |= CHILD_REORDER;
     vec_push(&parent->children, w);
@@ -139,6 +141,7 @@ void widget_layout(widget_t *w, int left, int top, int right, int bottom) {
     }
 
     int i;
+    int v_width = width, v_height = height;
     int overflow = 0;
     // layout children, expanding until they fit or we exceed a max dimension
     do {
@@ -177,19 +180,28 @@ void widget_layout(widget_t *w, int left, int top, int right, int bottom) {
                     break;
             }
         }
+
         switch (w->anchor) {
             case ANCHOR_LEFT:
             case ANCHOR_RIGHT:
                 overflow = inner_l - inner_r;
-                width += overflow * (overflow > 0);
+                v_width += overflow * (overflow > 0);
+                if (v_width >= max_width) {
+                    width = max_width;
+                    overflow = 0;
+                }
                 break;
-            case ANCHOR_TOP:
             case ANCHOR_BOTTOM:
+            case ANCHOR_TOP:
                 overflow = inner_t - inner_b;
-                height += overflow * (overflow > 0);
+                v_height += overflow * (overflow > 0);
+                if (v_height >= max_height) {
+                    height = max_height;
+                    overflow = 0;
+                }
                 break;
         }
-    } while (overflow > 0 && width <= max_width && height <= max_height);
+    } while (overflow > 0);
 
     w->width = width;
     w->height = height;
