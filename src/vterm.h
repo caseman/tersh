@@ -32,7 +32,6 @@ typedef struct {
 
 typedef vec_t(vterm_style_t) vec_vterm_style_t;
 typedef vec_t(vterm_cell_t) vec_vterm_cell_t;
-typedef vec_t(unsigned char) vec_uchar_t;
 
 typedef struct {
     int flags;

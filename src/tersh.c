@@ -21,8 +21,8 @@ static void print_w(widget_t *w) {
 }
 
 
-color_t colors[8] = {0xFFFF0000, 0xFF00FF00, 0xFF0000FF, 0xFFFF7700, 0xFF00FFFF,
-                     0xFFBBBBBB, 0xFF444444, 0xFF77FF00};
+color_t colors[8] = {0xFFFF0000, 0xFF00FF00, 0xFF0000FF, 0xFFFF3300, 0xFF00FFFF,
+                     0xFFBBBBBB, 0xFF444444, 0xFF33FF00};
 static void fill_w(widget_t *w) {
     char str[50];
     int l, t, r, b;
@@ -45,18 +45,8 @@ static void fill_w(widget_t *w) {
         fill_w(child);
     }
 }
-int main(int argc, char* argv[]) {
-    char *path = strdup(argv[0]);
-    char *dirpath = dirname(path);
 
-    terminal_open();
-    terminal_setf(
-        "window: size=80x40, cellsize=auto, resizeable=true, title='TERSH';"
-        "font: /Users/caseyduncan/Library/Fonts/DejaVu Sans Mono for Powerline.ttf, size=13;"
-        "input: filter={keyboard}",
-        dirpath
-    );
-
+void widget_test() {
     widget_t *main_w = widget_new();
     main_w->min_width = main_w->max_width = terminal_state(TK_WIDTH);
     main_w->min_height = main_w->max_height = terminal_state(TK_HEIGHT);
@@ -79,7 +69,7 @@ int main(int argc, char* argv[]) {
         fill_w(main_w);
         terminal_refresh();
         while (!terminal_has_input()) {
-            terminal_delay(10);
+            terminal_delay(20);
             if (scroll++ % 23 == 0) {
                 fake_stuff = widget_addx(term_w, -scroll, ANCHOR_BOTTOM, -1, -2);
             } else if (fake_stuff) {
@@ -100,6 +90,20 @@ int main(int argc, char* argv[]) {
             widget_layout(main_w, 0, 0, terminal_state(TK_WIDTH), terminal_state(TK_HEIGHT));
         }
     }
+}
+
+int main(int argc, char* argv[]) {
+    char *path = strdup(argv[0]);
+    char *dirpath = dirname(path);
+
+    terminal_open();
+    terminal_setf(
+        "window: size=80x40, cellsize=auto, resizeable=true, title='TERSH';"
+        "font: /Users/caseyduncan/Library/Fonts/DejaVu Sans Mono for Powerline.ttf, size=13;"
+        "input: filter={keyboard}",
+        dirpath
+    );
+
     vterm_t vt;
     vterm_init(&vt, 0, 0, terminal_state(TK_WIDTH), terminal_state(TK_HEIGHT)-1);
 
@@ -117,6 +121,9 @@ int main(int argc, char* argv[]) {
     vec_init(&child_argv);
 
     process_t child;
+    widget_t *w = widget_new((widget_t){
+        .order = 0,
+    });
 
     while (1) {
         while (!terminal_has_input()) {

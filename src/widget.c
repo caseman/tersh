@@ -30,18 +30,21 @@ static widget_pool *alloc_pool() {
     return p;
 }
 
-widget_t *widget_new() {
+widget_t *widget_new(widget_t config) {
+    widget_t *w;
     if (_widget_p == NULL || 
         _widget_p->new >= _widget_p->widgets + WIDGET_POOL_SIZE) {
         if (alloc_pool() == NULL) return NULL;
     }
     if (_widget_p->free) {
-        widget_t *recycled = _widget_p->free;
-        _widget_p->free = recycled->parent;
-        widget_init(recycled);
-        return recycled;
+        w = _widget_p->free;
+        _widget_p->free = w->parent;
+        widget_init(w);
+    } else {
+        w = _widget_p->new++;
     }
-    return _widget_p->new++;
+    memcpy(w, &config, sizeof(widget_t));
+    return w;
 }
 
 void widget_del(widget_t *w) {
@@ -110,6 +113,7 @@ static void place_widget(widget_t *w, int left, int top, int right, int bottom) 
             w->top = bottom - w->height;
             break;
     }
+    w->flags |= WIDGET_NEEDS_REDRAW;
 }
 
 void widget_layout(widget_t *w, int left, int top, int right, int bottom) {
