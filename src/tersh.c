@@ -124,8 +124,9 @@ int main(int argc, char* argv[]) {
         .parent = root_w,
         .anchor = ANCHOR_BOTTOM,
         .min_height = 1,
-        .max_height = 1,
+        .max_height = -1,
         .min_width = 10,
+        .max_width = -1,
         .data = &le,
     });
 
@@ -137,9 +138,9 @@ int main(int argc, char* argv[]) {
     terminal_refresh();
 
     while (1) {
-        while (!terminal_has_input()) {
-            terminal_delay(10);
-            widget_update(root_w, 10);
+        if (!terminal_has_input()) {
+            terminal_delay(1);
+            widget_update(root_w, 1);
         }
 
         if (terminal_has_input()) {
@@ -151,6 +152,7 @@ int main(int argc, char* argv[]) {
         }
 
         if (line_ed_w->flags & WIDGET_NEEDS_REDRAW) {
+            widget_relayout(root_w);
             widget_draw(root_w);
             terminal_refresh();
         }

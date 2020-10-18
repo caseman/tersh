@@ -79,7 +79,7 @@ void lineedit_update(widget_t *w, unsigned int dt) {
 
 void lineedit_layout(widget_t *w) {
     lineedit_t *le = widget_data(w, &lineedit_widget);
-    w->height = (le->buf.length + 2) / w->width + 1;
+    w->height = 1 + (le->buf.length + 2) / (w->width + 1);
 }
 
 void lineedit_draw(widget_t *w) {
@@ -102,8 +102,8 @@ void lineedit_draw(widget_t *w) {
     terminal_clear_area(w->left, w->top, w->width, w->height);
     if (le->curs_vis) {
         int cellw = terminal_state(TK_CELL_WIDTH);
-        x = w->left + (le->curs + 2) % w->width;
-        y = w->top + (le->curs + 2) / w->width;
+        x = w->left + (le->curs + 2) % (w->width + 1);
+        y = w->top + (le->curs + 2) / (w->width + 1);
         terminal_put_ext(x, y, -cellw / 2 + 1, -2, 0x007C, NULL);
     }
     terminal_layer(0);
