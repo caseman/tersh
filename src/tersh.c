@@ -115,7 +115,9 @@ int main(int argc, char* argv[]) {
         .max_height = terminal_state(TK_HEIGHT),
     });
 
-    lineedit_t le = (lineedit_t){};
+    lineedit_t le = (lineedit_t){
+        .blink_time = 500,
+    };
 
     widget_t *line_ed_w = widget_new((widget_t){
         .cls = &lineedit_widget,
