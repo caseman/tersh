@@ -2,6 +2,10 @@
 #include "vec.h"
 #include "BearLibTerminal.h"
 #include "vtparse.h"
+#include "widget.h"
+
+#ifndef VTERM_H
+#define VTERM_H
 
 #define VT_NEEDS_REDRAW  1
 
@@ -10,8 +14,6 @@
 #define VTCELL_WRAPPED_FLAG 0x20
 
 #define VTCELL_STYLE_MASK 0x0FFFFFFF
-
-typedef vec_t(wchar_t) vec_wchar_t;
 
 typedef struct {
     color_t fgcolor;
@@ -32,7 +34,6 @@ typedef struct {
 
 typedef vec_t(vterm_style_t) vec_vterm_style_t;
 typedef vec_t(vterm_cell_t) vec_vterm_cell_t;
-typedef vec_t(unsigned char) vec_uchar_t;
 
 typedef struct {
     int flags;
@@ -49,4 +50,7 @@ int vterm_init(vterm_t *vt, int left, int top, int width, int height);
 void vterm_deinit(vterm_t *t);
 int vterm_write(vterm_t *t, unsigned char *data, unsigned int data_len);
 unsigned char *vterm_read(vterm_t *t);
-void vterm_draw(vterm_t *vt);
+
+widget_cls vterm_widget;
+
+#endif

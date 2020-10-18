@@ -158,6 +158,8 @@ typedef vec_t(void*) vec_void_t;
 typedef vec_t(char*) vec_str_t;
 typedef vec_t(int) vec_int_t;
 typedef vec_t(char) vec_char_t;
+typedef vec_t(unsigned char) vec_uchar_t;
+typedef vec_t(wchar_t) vec_wchar_t;
 typedef vec_t(float) vec_float_t;
 typedef vec_t(double) vec_double_t;
 

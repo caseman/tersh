@@ -1,17 +1,21 @@
-#define LINEEDIT_CANCEL -1
-#define LINEEDIT_UNCHANGED 0
-#define LINEEDIT_CHANGED 1
-#define LINEEDIT_EXIT 2
-#define LINEEDIT_CONFIRM 3
+#include "vec.h"
+#include "widget.h"
+
+typedef enum {
+    lineedit_unchanged = 0,
+    lineedit_changed = 1,
+    lineedit_confirmed = 3,
+    lineedit_cancelled = 4,
+} lineedit_state;
 
 typedef struct {
-    int len, alloc, curs, curs_vis;
-    wchar_t *buf;
-} lineedit;
+    int curs, curs_vis;
+    unsigned int blink_time, elapsed;
+    lineedit_state state;
+    vec_wchar_t buf;
+} lineedit_t;
 
-int lineedit_init(lineedit *le);
-int lineedit_insert(lineedit *le, wchar_t ch);
-int lineedit_handle(lineedit *le, int event);
-void lineedit_blink(lineedit *le);
-void lineedit_clear(lineedit *le);
-int lineedit_draw(lineedit *le);
+widget_cls lineedit_widget;
+
+int lineedit_insert(widget_t *w, wchar_t ch);
+void lineedit_clear(widget_t *w);

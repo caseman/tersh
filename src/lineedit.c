@@ -1,115 +1,118 @@
 #include "BearLibTerminal.h"
 #include "lineedit.h"
 
-#define ALLOC_INCR 256
-
-int lineedit_init(lineedit *le) {
-    le->alloc = ALLOC_INCR;
-    le->len = 0;
-    le->buf = malloc(sizeof(wchar_t) * le->alloc);
-    if (le->buf == NULL) {
-        return -1;
+int lineedit_insert(widget_t *w, wchar_t ch) {
+    lineedit_t *le = widget_data(w, &lineedit_widget);
+    int err;
+    if (le->curs >= le->buf.length) {
+        err = vec_push(&le->buf, ch);
+        le->curs = le->buf.length;
+    } else {
+        err = vec_insert(&le->buf, le->curs, ch);
+        if (!err) le->curs++;
     }
+    return err;
+}
+
+void lineedit_clear(widget_t *w) {
+    lineedit_t *le = widget_data(w, &lineedit_widget);
+    le->buf.length = 0;
     le->curs = 0;
-    le->curs_vis = 0;
-    *(le->buf) = 0;
-    return 0;
+    le->curs_vis = 1;
 }
 
-int lineedit_insert(lineedit *le, wchar_t ch) {
-    if (le->len + 1 == le->alloc) {
-        wchar_t *rebuf = realloc(le->buf, sizeof(wchar_t) * (le->alloc + ALLOC_INCR));
-        if (rebuf == NULL) {
-            return -1;
-        }
-        le->buf = rebuf;
-        le->alloc += ALLOC_INCR;
-    }
-    le->len++;
-    for (wchar_t *c = le->buf+le->len; c > le->buf+le->curs; c--) {
-        *c = *(c - 1);
-    }
-    le->buf[le->curs++] = ch;
-    le->buf[le->curs] = 0;
-    return 0;
-}
-
-int lineedit_handle(lineedit *le, int event) {
+int lineedit_handle_ev(widget_t *w, int event) {
+    lineedit_t *le = widget_data(w, &lineedit_widget);
+    le->state = lineedit_unchanged;
     switch (event) {
         case TK_RETURN:
-            return LINEEDIT_CONFIRM;
+            le->state = lineedit_confirmed;
+            return 1;
         case TK_ESCAPE:
-            return LINEEDIT_CANCEL;
+            le->state = lineedit_cancelled;
+            return 1;
         case TK_BACKSPACE:
-            if (le->curs > 0) {
+            if (le->curs >= le->buf.length) {
+                vec_pop(&le->buf);
+                le->curs = le->buf.length;
+            } else if (le->curs > 0) {
+                vec_del(&le->buf, le->curs);
                 le->curs--;
-                for (wchar_t *c = le->buf+le->curs; c < le->buf+le->len+1; c++) {
-                    *c = *(c + 1);
-                }
-                le->len--;
             }
-            return LINEEDIT_CHANGED;
+            le->state = lineedit_changed;
+            break;
         case TK_LEFT:
             if (le->curs > 0) {
                 le->curs--;
             }
-            return LINEEDIT_CHANGED;
+            le->state = lineedit_changed;
+            break;
         case TK_RIGHT:
-            if (le->curs < le->len) {
+            if (le->curs < le->buf.length) {
                 le->curs++;
             }
-            return LINEEDIT_CHANGED;
+            le->state = lineedit_changed;
+            break;
+        default:
+            if (terminal_check(TK_WCHAR)) {
+                lineedit_insert(w, terminal_state(TK_WCHAR));
+                le->state = lineedit_changed;
+                break;
+            }
     }
-    if (terminal_check(TK_WCHAR)) {
-        lineedit_insert(le, terminal_state(TK_WCHAR));
-        return LINEEDIT_CHANGED;
+    if (le->state == lineedit_changed) {
+        w->flags |= WIDGET_NEEDS_REDRAW;
+        return 1;
     }
-    return LINEEDIT_UNCHANGED;
+    return 0;
 }
 
-void lineedit_clear(lineedit *le) {
-    le->len = 0;
-    le->curs = 0;
-    le->curs_vis = 1;
-    le->buf[0] = 0;
+void lineedit_update(widget_t *w, unsigned int dt) {
+    lineedit_t *le = widget_data(w, &lineedit_widget);
+    le->elapsed += dt;
+    if (le->blink_time && le->elapsed >= le->blink_time) {
+        le->elapsed -= le->blink_time;
+        le->curs_vis = !le->curs_vis;
+        w->flags |= WIDGET_NEEDS_REDRAW;
+    }
 }
 
-static void draw_curs(lineedit *le, int term_w, int term_h, int le_h) {
+void lineedit_layout(widget_t *w) {
+    lineedit_t *le = widget_data(w, &lineedit_widget);
+    w->height = (le->buf.length + 2) / w->width + 1;
+}
+
+void lineedit_draw(widget_t *w) {
+    lineedit_t *le = widget_data(w, &lineedit_widget);
+    terminal_clear_area(w->left, w->top, w->width, w->height);
+    int y = w->top;
+    int x = w->left + 2;
+    terminal_print(0, y, "[color=yellow]>[/color]");
+    int i;
+    wchar_t ch;
+    vec_foreach(&le->buf, ch, i) {
+        terminal_put(x++, y, ch);
+        if (x > w->left + w->width) {
+            x = 0;
+            y++;
+        }
+    }
+    // Draw cursor
     terminal_layer(1);
-    terminal_clear_area(0, term_h - le_h, term_w, le_h);
+    terminal_clear_area(w->left, w->top, w->width, w->height);
     if (le->curs_vis) {
         int cellw = terminal_state(TK_CELL_WIDTH);
-        int x = (le->curs+2) % term_w;
-        int y = term_h - le_h + (le->curs+2) / term_w;
+        x = w->left + (le->curs + 2) % w->width;
+        y = w->top + (le->curs + 2) / w->width;
         terminal_put_ext(x, y, -cellw / 2 + 1, -2, 0x007C, NULL);
     }
     terminal_layer(0);
 }
 
-void lineedit_blink(lineedit *le) {
-    int term_w = terminal_state(TK_WIDTH);
-    int term_h = terminal_state(TK_HEIGHT);
-    int le_h = (le->len+2) / term_w + 1;
-    le->curs_vis = !le->curs_vis;
-    draw_curs(le, term_w, term_h, le_h);
-}
-
-int lineedit_draw(lineedit *le) {
-    int term_w = terminal_state(TK_WIDTH);
-    int term_h = terminal_state(TK_HEIGHT);
-    int le_h = (le->len+2) / term_w + 1;
-    int y = term_h - le_h;
-    terminal_clear_area(0, y, term_w, le_h);
-    terminal_print(0, y, "[color=yellow]>[/color]");
-    wchar_t *c = le->buf;
-    int x = 2;
-    while (*(c)) {
-        for (; *(c) && x < term_w; x++) {
-            terminal_put(x, y, *(c++));
-        }
-        x = 0;
-        y++;
-    }
-    draw_curs(le, term_w, term_h, le_h);
-    return le_h;
-}
+widget_cls lineedit_widget = {
+    .name = "lineedit",
+    .handle_ev = lineedit_handle_ev,
+    .draw = lineedit_draw,
+    .layout = lineedit_layout,
+    .update = lineedit_update,
+};

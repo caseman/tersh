@@ -22,6 +22,7 @@ set(RESOURCE_FILES
 add_executable(tersh
     src/tersh.c
     src/vec.c
+    src/smalloc.c
     src/lineedit.c
     src/vterm.c
     src/process.c

@@ -20,13 +20,12 @@ static void print_w(widget_t *w) {
             w->order, w->left, w->top, w->width, w->height, w->min_width, w->min_height);
 }
 
-
-color_t colors[8] = {0xFFFF0000, 0xFF00FF00, 0xFF0000FF, 0xFFFF7700, 0xFF00FFFF,
-                     0xFFBBBBBB, 0xFF444444, 0xFF77FF00};
+/*
+color_t colors[8] = {0xFFFF0000, 0xFF00FF00, 0xFF0000FF, 0xFFFF3300, 0xFF00FFFF,
+                     0xFFBBBBBB, 0xFF444444, 0xFF33FF00};
 static void fill_w(widget_t *w) {
     char str[50];
     int l, t, r, b;
-    if (w->flags & WIDGET_DELETED) return;
     print_w(w);
     l = w->left > 0 ? w->left : 0;
     t = w->top > 0 ? w->top : 0;
@@ -45,22 +44,15 @@ static void fill_w(widget_t *w) {
         fill_w(child);
     }
 }
-int main(int argc, char* argv[]) {
-    char *path = strdup(argv[0]);
-    char *dirpath = dirname(path);
 
-    terminal_open();
-    terminal_setf(
-        "window: size=80x40, cellsize=auto, resizeable=true, title='TERSH';"
-        "font: /Users/caseyduncan/Library/Fonts/DejaVu Sans Mono for Powerline.ttf, size=13;"
-        "input: filter={keyboard}",
-        dirpath
-    );
-
-    widget_t *main_w = widget_new();
-    main_w->min_width = main_w->max_width = terminal_state(TK_WIDTH);
-    main_w->min_height = main_w->max_height = terminal_state(TK_HEIGHT);
-    main_w->anchor = ANCHOR_BOTTOM;
+void widget_test() {
+    widget_t *main_w = widget_new((widget_t){
+        .anchor = ANCHOR_BOTTOM,
+        .min_width = terminal_state(TK_WIDTH),
+        .max_width = terminal_state(TK_WIDTH),
+        .min_height = terminal_state(TK_HEIGHT),
+        .max_height = terminal_state(TK_HEIGHT),
+    });
     widget_t *cmd_line_w = widget_addx(main_w, 1, ANCHOR_BOTTOM, -1, 2);
     widget_addx(cmd_line_w, 100, ANCHOR_LEFT, 3, 3);
     widget_addx(cmd_line_w, 102, ANCHOR_RIGHT, 10, 1);
@@ -79,7 +71,7 @@ int main(int argc, char* argv[]) {
         fill_w(main_w);
         terminal_refresh();
         while (!terminal_has_input()) {
-            terminal_delay(10);
+            terminal_delay(20);
             if (scroll++ % 23 == 0) {
                 fake_stuff = widget_addx(term_w, -scroll, ANCHOR_BOTTOM, -1, -2);
             } else if (fake_stuff) {
@@ -100,32 +92,52 @@ int main(int argc, char* argv[]) {
             widget_layout(main_w, 0, 0, terminal_state(TK_WIDTH), terminal_state(TK_HEIGHT));
         }
     }
+}
+*/
+
+int main(int argc, char* argv[]) {
+    char *path = strdup(argv[0]);
+    char *dirpath = dirname(path);
+
+    terminal_open();
+    terminal_setf(
+        "window: size=80x40, cellsize=auto, resizeable=true, title='TERSH';"
+        "font: /Users/caseyduncan/Library/Fonts/DejaVu Sans Mono for Powerline.ttf, size=13;"
+        "input: filter={keyboard}",
+        dirpath
+    );
+
+    widget_t *root_w = widget_new((widget_t){
+        .anchor = ANCHOR_BOTTOM,
+        .min_width = terminal_state(TK_WIDTH),
+        .max_width = terminal_state(TK_WIDTH),
+        .min_height = terminal_state(TK_HEIGHT),
+        .max_height = terminal_state(TK_HEIGHT),
+    });
+
+    lineedit_t le = (lineedit_t){};
+
+    widget_t *line_ed_w = widget_new((widget_t){
+        .cls = &lineedit_widget,
+        .parent = root_w,
+        .anchor = ANCHOR_BOTTOM,
+        .min_height = 1,
+        .max_height = 1,
+        .min_width = 10,
+        .data = &le,
+    });
+
     vterm_t vt;
     vterm_init(&vt, 0, 0, terminal_state(TK_WIDTH), terminal_state(TK_HEIGHT)-1);
 
-    lineedit led;
-    lineedit_init(&led);
-    int curs_time = 0;
-
-    lineedit_draw(&led);
+    widget_layout(root_w, 0, 0, terminal_state(TK_WIDTH), terminal_state(TK_HEIGHT));
+    widget_draw(root_w);
     terminal_refresh();
-
-    vec_char_t cmd_line;
-    vec_init(&cmd_line);
-    vec_reserve(&cmd_line, 128);
-    vec_str_t child_argv;
-    vec_init(&child_argv);
-
-    process_t child;
 
     while (1) {
         while (!terminal_has_input()) {
-            terminal_delay(1);
-            if (++curs_time > curs_blink) {
-                lineedit_blink(&led);
-                terminal_refresh();
-                curs_time = 0;
-            }
+            terminal_delay(10);
+            widget_update(root_w, 10);
         }
 
         if (terminal_has_input()) {
@@ -133,42 +145,67 @@ int main(int argc, char* argv[]) {
             if (key == TK_ESCAPE || key == TK_CLOSE) {
                 break;
             }
-            int led_state = lineedit_handle(&led, key);
-            if (led_state == LINEEDIT_CHANGED) {
-                led.curs_vis = 1;
-                lineedit_draw(&led);
-                terminal_refresh();
-                curs_time = 0;
-            } else if (led_state == LINEEDIT_CONFIRM) {
+            line_ed_w->cls->handle_ev(line_ed_w, key);
+        }
+
+        if (line_ed_w->flags & WIDGET_NEEDS_REDRAW) {
+            widget_draw(root_w);
+            terminal_refresh();
+        }
+    }
+
+    terminal_close();
+    exit(0);
+
+    vec_char_t cmd_line;
+    vec_init(&cmd_line);
+    vec_reserve(&cmd_line, 128);
+    vec_str_t child_argv;
+    vec_init(&child_argv);
+
+    process_mgr_t process_mgr;
+    process_t *child;
+
+    while (1) {
+        while (!terminal_has_input()) {
+            terminal_delay(1);
+        }
+
+        if (terminal_has_input()) {
+            int key = terminal_read();
+            if (key == TK_ESCAPE || key == TK_CLOSE) {
+                break;
+            }
+            if (0) {
                 cmd_line.length = 0;
                 child_argv.length = 0;
                 const char *cmd = cmd_line.data;
                 vec_push(&child_argv, cmd_line.data);
                 int i = 0;
-                for(; i < led.len; i++) {
-                    if (led.buf[i] == ' ') {
+                for(; i < le.buf.length; i++) {
+                    if (le.buf.data[i] == ' ') {
                         vec_push(&cmd_line, 0);
                         break;
                     }
-                    vec_push(&cmd_line, led.buf[i]);
+                    vec_push(&cmd_line, le.buf.data[i]);
                 }
-                while (i < led.len) {
-                    while (led.buf[i] == ' ' && i < led.len) i++;
-                    if (i == led.len) break;
+                while (i < le.buf.length) {
+                    while (le.buf.data[i] == ' ' && i < le.buf.length) i++;
+                    if (i == le.buf.length) break;
                     vec_push(&child_argv, cmd_line.data + cmd_line.length);
-                    for(; i < led.len; i++) {
-                        if (led.buf[i] == ' ') {
+                    for(; i < le.buf.length; i++) {
+                        if (le.buf.data[i] == ' ') {
                             vec_push(&cmd_line, 0);
                             break;
                         }
-                        vec_push(&cmd_line, led.buf[i]);
+                        vec_push(&cmd_line, le.buf.data[i]);
                     }
                 }
                 vec_push(&cmd_line, 0);
                 vec_push(&child_argv, 0);
 
-                int err = process_spawn(&child, cmd, child_argv.data);
-                if (err < 0) {
+                child = process_spawn(&process_mgr, NULL, cmd, child_argv.data);
+                if (child == NULL) {
                     char *err_str = strerror(errno);
                     vterm_write(&vt, "ERROR: ", 7);
                     vterm_write(&vt, err_str, strlen(err_str));
@@ -177,18 +214,16 @@ int main(int argc, char* argv[]) {
                 }
                 ssize_t bytes;
                 unsigned char buf[256];
-                while ((bytes = read(child.out, buf, 256))) {
+                while ((bytes = read(child->out_fd, buf, 256))) {
                     if (bytes < 0) break;
                     vterm_write(&vt, buf, bytes);
                 }
                 int status;
-                waitpid(child.pid, &status, 0);
+                waitpid(child->pid, &status, 0);
                 if (WIFEXITED(status)) {
                     printf("%s exited %d\n", cmd, WEXITSTATUS(status));
                 }
                 vterm_draw(&vt);
-                lineedit_clear(&led);
-                lineedit_draw(&led);
                 terminal_refresh();
             }
         }

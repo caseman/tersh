@@ -1,4 +1,5 @@
 #include "stdio.h"
+#include "assert.h"
 #include "err.h"
 #include "vterm.h"
 
@@ -99,20 +100,28 @@ unsigned char *vterm_read(vterm_t *vt) {
     }
     return NULL;
 }
-/*
-#define tput(x,y,ch)\
-    (printf("(%d,%d,%x) ", x, y, ch), terminal_put(x, y, ch))
-*/
-#define tput(x,y,ch) terminal_put(x,y,ch)
 
-void vterm_draw(vterm_t *vt) {
-    int full_redraw = vt->flags & VT_NEEDS_REDRAW;
+int vterm_handle_ev(widget_t *w, int event) {
+    assert(w->cls == &vterm_widget);
+    return 0;
+}
+
+void vterm_layout(widget_t *w) {
+    assert(w->cls == &vterm_widget);
+    // TODO reflow
+}
+
+void vterm_draw(widget_t *w) {
+    assert(w->cls == &vterm_widget);
+    vterm_t *vt = w->data;
+    int full_redraw = w->flags & WIDGET_NEEDS_REDRAW
+                      || vt->flags & VT_NEEDS_REDRAW;
     int line_pos = vt->scroll_pos == 0 ? vt->lines - vt->height : vt->scroll_pos - 1;
     int empty_lines_top = (line_pos < 0) * -line_pos;
     if (full_redraw) {
-        terminal_clear_area(vt->left, vt->top, vt->width, vt->height);
+        terminal_clear_area(w->left, w->top, w->width, w->height);
     } else if (empty_lines_top) {
-        terminal_clear_area(vt->left, vt->top, vt->width, empty_lines_top);
+        terminal_clear_area(w->left, w->top, w->width, empty_lines_top);
     }
     int first_line = (line_pos > 0) * line_pos;
     int empty_lines_bottom = vt->height - empty_lines_top - vt->lines - first_line;
@@ -127,7 +136,7 @@ void vterm_draw(vterm_t *vt) {
         // Short circuit checking individual dirty flags and draw everything
         for (int screen_y = vt->top + empty_lines_top; screen_y < bottom_y; screen_y++) {
             for (int screen_x = 0; screen_x < vt->width; screen_x++, cell++) {
-                if (cell->ch) tput(screen_x, screen_y, cell->ch);
+                if (cell->ch) terminal_put(screen_x, screen_y, cell->ch);
                 cell->flags &= ~VTCELL_DIRTY_FLAG;
             }
         }
@@ -141,7 +150,7 @@ void vterm_draw(vterm_t *vt) {
             }
             for (int screen_x = 0; screen_x < vt->width; screen_x++, cell++) {
                 if (cell->flags & VTCELL_DIRTY_FLAG) {
-                    tput(screen_x, screen_y, cell->ch);
+                    terminal_put(screen_x, screen_y, cell->ch);
                     cell->flags &= ~VTCELL_DIRTY_FLAG;
                 }
             }
@@ -149,3 +158,11 @@ void vterm_draw(vterm_t *vt) {
     }
     vt->flags &= ~VT_NEEDS_REDRAW;
 }
+
+widget_cls vterm_widget = {
+    .name = "vterm",
+    .handle_ev = vterm_handle_ev,
+    .draw = vterm_draw,
+    .layout = vterm_layout,
+};
+

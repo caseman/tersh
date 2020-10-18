@@ -1,94 +1,58 @@
 #include <string.h>
+#include "smalloc.h"
 #include "widget.h"
 
-#define WIDGET_POOL_SIZE 128
+smalloc_pool_t widget_pool = SMALLOC_POOL(sizeof(widget_t));
 
-typedef struct w_pool widget_pool;
+widget_cls no_widget_cls = { .name = "(no class)" };
 
-struct w_pool {
-    widget_t *new, *free;
-    widget_pool *next_pool;
-    widget_t widgets[WIDGET_POOL_SIZE];
-};
-
-widget_pool *_widget_p = NULL;
-
-void widget_init(widget_t *w) {
-    memset(w, 0, sizeof(widget_t));
+widget_t *widget_new(widget_t config) {
+    widget_t *w = smalloc(&widget_pool);
+    if (w == NULL) return NULL;
+    memcpy(w, &config, sizeof(widget_t));
+    vec_init(&w->children);
+    if (w->parent) {
+        w->parent->flags |= CHILD_REORDER;
+        vec_push(&w->parent->children, w);
+    }
+    if (w->cls == NULL) {
+        w->cls = &no_widget_cls;
+    }
+    return w;
 }
 
-static widget_pool *alloc_pool() {
-    widget_pool *p = calloc(1, sizeof(widget_pool));
-    if (p == NULL) return NULL;
-    p->new = p->widgets;
-    if (_widget_p != NULL) {
-        p->free = _widget_p->free;
-        _widget_p->free = NULL;
+static void del_recursive(widget_t *w) {
+    int i;
+    widget_t *child;
+    vec_foreach(&w->children, child, i) {
+        del_recursive(child);
     }
-    p->next_pool = _widget_p;
-    _widget_p = p;
-    return p;
-}
-
-widget_t *widget_new() {
-    if (_widget_p == NULL || 
-        _widget_p->new >= _widget_p->widgets + WIDGET_POOL_SIZE) {
-        if (alloc_pool() == NULL) return NULL;
-    }
-    if (_widget_p->free) {
-        widget_t *recycled = _widget_p->free;
-        _widget_p->free = recycled->parent;
-        widget_init(recycled);
-        return recycled;
-    }
-    return _widget_p->new++;
+    if (w->cls->del) w->cls->del(w);
+    vec_deinit(&w->children);
+    smfree(&widget_pool, w);
 }
 
 void widget_del(widget_t *w) {
     int i;
     widget_t *child;
+    if (w->parent) {
+        vec_foreach(&w->parent->children, child, i) {
+            if (child == w) {
+                vec_del(&w->parent->children, i);
+                break;
+            }
+        }
+    }
+    del_recursive(w);
+}
+
+void widget_update(widget_t *w, unsigned int dt) {
+    int i;
+    widget_t *child;
     vec_foreach(&w->children, child, i) {
-        widget_del(child);
+        widget_update(child, dt);
     }
-    w->flags |= WIDGET_DELETED;
-    vec_deinit(&w->children);
-    w->parent = _widget_p->free;
-    _widget_p->free = w;
-}
-
-widget_t *widget_add(widget_t *parent) {
-    widget_t *w = widget_new();
-    if (w == NULL) return NULL;
-    w->parent = parent;
-    parent->flags |= CHILD_REORDER;
-    vec_push(&parent->children, w);
-    return w;
-}
-
-widget_t *widget_addx(widget_t *parent, short order, widget_anchor anchor, int width, int height) {
-    widget_t *w = widget_add(parent);
-    if (w == NULL) return NULL;
-    w->order = order;
-    w->anchor = anchor;
-    if (width >= 0) {
-        w->min_width = w->max_width = width;
-    } else {
-        w->max_width = -1;
-        w->min_width = -width;
-    }
-    if (height >= 0) {
-        w->min_height = w->max_height = height;
-    } else {
-        w->max_height = -1;
-        w->min_height = -height;
-    }
-    return w;
-}
-
-static int cmp_widgets(const void* a, const void* b) {
-    widget_t **wa = (widget_t **)a;
-    widget_t **wb = (widget_t **)b;
-    return ((*wa)->order > (*wb)->order) - ((*wa)->order < (*wb)->order);
+    if (w->cls->update) w->cls->update(w, dt);
 }
 
 static void place_widget(widget_t *w, int left, int top, int right, int bottom) {
@@ -110,6 +74,20 @@ static void place_widget(widget_t *w, int left, int top, int right, int bottom) 
             w->top = bottom - w->height;
             break;
     }
+    w->flags |= WIDGET_NEEDS_REDRAW;
+}
+
+static int cmp_widgets(const void* a, const void* b) {
+    widget_t **wa = (widget_t **)a;
+    widget_t **wb = (widget_t **)b;
+    return ((*wa)->order > (*wb)->order) - ((*wa)->order < (*wb)->order);
+}
+
+static void order_children(widget_t *w) {
+    if (w->flags & CHILD_REORDER) {
+        vec_sort(&w->children, cmp_widgets);
+        w->flags &= ~CHILD_REORDER;
+    }
 }
 
 void widget_layout(widget_t *w, int left, int top, int right, int bottom) {
@@ -121,49 +99,52 @@ void widget_layout(widget_t *w, int left, int top, int right, int bottom) {
     if (!w->children.length) {
         w->width = max_width > w->min_width ? max_width : w->min_width;
         w->height = max_height > w->min_height ? max_height : w->min_height;
+        if (w->cls->layout) w->cls->layout(w);
         place_widget(w, left, top, right, bottom);
         return;
     }
 
-    if (w->flags & CHILD_REORDER) {
-        vec_sort(&w->children, cmp_widgets);
-        w->flags &= ~CHILD_REORDER;
-    }
+    order_children(w);
 
     // Start with minimal container size
     switch (w->anchor) {
         case ANCHOR_LEFT:
         case ANCHOR_RIGHT:
-            width = w->min_width;
+            w->width = w->min_width;
+            w->height = height;
+            break;
         case ANCHOR_TOP:
         case ANCHOR_BOTTOM:
-            height = w->min_height;
+            w->width = width;
+            w->height = w->min_height;
+            break;
     }
 
     int i;
-    int v_width = width, v_height = height;
     int overflow = 0;
     // layout children, expanding until they fit or we exceed a max dimension
     do {
+        // Allow the layout hook to adjust dimensions
+        if (w->cls->layout) w->cls->layout(w);
+
         int inner_l = left, inner_t = top, inner_r = right, inner_b = bottom;
         switch (w->anchor) {
             case ANCHOR_LEFT:
-                inner_r = left + width;
+                inner_r = left + w->width;
                 break;
             case ANCHOR_RIGHT:
-                inner_l = right - width;
+                inner_l = right - w->width;
                 break;
             case ANCHOR_TOP:
-                inner_b = top + height;
+                inner_b = top + w->height;
                 break;
             case ANCHOR_BOTTOM:
-                inner_t = bottom - height;
+                inner_t = bottom - w->height;
                 break;
         }
 
         widget_t *child;
         vec_foreach(&w->children, child, i) {
-            if (child->flags & WIDGET_DELETED) continue;
             widget_layout(child, inner_l, inner_t, inner_r, inner_b);
             switch (child->anchor) {
                 case ANCHOR_LEFT:
@@ -185,29 +166,42 @@ void widget_layout(widget_t *w, int left, int top, int right, int bottom) {
             case ANCHOR_LEFT:
             case ANCHOR_RIGHT:
                 overflow = inner_l - inner_r;
-                v_width += overflow * (overflow > 0);
-                if (v_width >= max_width) {
-                    width = max_width;
+                w->width += overflow * (overflow > 0);
+                if (w->width >= max_width) {
+                    w->width = max_width;
                     overflow = 0;
                 }
                 break;
             case ANCHOR_BOTTOM:
             case ANCHOR_TOP:
                 overflow = inner_t - inner_b;
-                v_height += overflow * (overflow > 0);
-                if (v_height >= max_height) {
-                    height = max_height;
+                w->height += overflow * (overflow > 0);
+                if (w->height >= max_height) {
+                    w->height = max_height;
                     overflow = 0;
                 }
                 break;
         }
     } while (overflow > 0);
 
-    w->width = width;
-    w->height = height;
     place_widget(w, left, top, right, bottom);
 }
 
-void widget_refresh(widget_t *w) {
+void widget_relayout(widget_t *w) {
     widget_layout(w, w->left, w->top, w->left + w->width, w->top + w->height);
+}
+
+void widget_draw(widget_t *w) {
+    /* Note this leaves it up to the widget drawing routines to clear
+     * the widget rect if it is needed */
+    if (w->cls->draw) w->cls->draw(w);
+    w->flags &= ~WIDGET_NEEDS_REDRAW;
+    if (w->children.length) {
+        int i;
+        widget_t *child;
+        order_children(w);
+        vec_foreach(&w->children, child, i) {
+            widget_draw(child);
+        }
+    }
 }
