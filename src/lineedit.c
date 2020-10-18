@@ -109,6 +109,13 @@ void lineedit_draw(widget_t *w) {
     terminal_layer(0);
 }
 
+lineedit_state_e lineedit_state(widget_t *w) {
+    lineedit_t *le = widget_data(w, &lineedit_widget);
+    lineedit_state_e state = le->state;
+    le->state = lineedit_unchanged;
+    return state;
+}
+
 widget_cls lineedit_widget = {
     .name = "lineedit",
     .handle_ev = lineedit_handle_ev,

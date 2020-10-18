@@ -46,6 +46,12 @@ typedef struct {
      */
     void (*draw)(widget_t *w);
     /*
+     * initialization hook, called when widget is created
+     * returns 0 on success, return -1 for generic errors or an errno
+     * for a specific errors. On failure widget creation also fails
+     */
+    int (*init)(widget_t *w);
+    /*
      * delete hook, called before widget is deleted
      */
     void (*del)(widget_t *w);

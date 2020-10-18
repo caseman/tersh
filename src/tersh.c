@@ -123,6 +123,7 @@ int main(int argc, char* argv[]) {
         .cls = &lineedit_widget,
         .parent = root_w,
         .anchor = ANCHOR_BOTTOM,
+        .order = 1,
         .min_height = 1,
         .max_height = -1,
         .min_width = 10,
@@ -130,8 +131,16 @@ int main(int argc, char* argv[]) {
         .data = &le,
     });
 
-    vterm_t vt;
-    vterm_init(&vt, 0, 0, terminal_state(TK_WIDTH), terminal_state(TK_HEIGHT)-1);
+    widget_t *vterm_w = widget_new((widget_t){
+        .cls = &vterm_widget,
+        .parent = root_w,
+        .anchor = ANCHOR_BOTTOM,
+        .order = 2,
+        .min_height = 1,
+        .max_height = -1,
+        .min_width = 10,
+        .max_width = -1,
+    });
 
     widget_layout(root_w, 0, 0, terminal_state(TK_WIDTH), terminal_state(TK_HEIGHT));
     widget_draw(root_w);
@@ -151,7 +160,15 @@ int main(int argc, char* argv[]) {
             line_ed_w->cls->handle_ev(line_ed_w, key);
         }
 
-        if (line_ed_w->flags & WIDGET_NEEDS_REDRAW) {
+        if (lineedit_state(line_ed_w) == lineedit_confirmed) {
+            if (le.buf.length) {
+                vterm_writew(vterm_w, le.buf.data, le.buf.length);
+            }
+            vterm_write(vterm_w, (unsigned char *)"\n", 1);
+            lineedit_clear(line_ed_w);
+        }
+
+        if ((vterm_w->flags | line_ed_w->flags) & WIDGET_NEEDS_REDRAW) {
             widget_relayout(root_w);
             widget_draw(root_w);
             terminal_refresh();
@@ -211,23 +228,23 @@ int main(int argc, char* argv[]) {
                 child = process_spawn(&process_mgr, NULL, cmd, child_argv.data);
                 if (child == NULL) {
                     char *err_str = strerror(errno);
-                    vterm_write(&vt, "ERROR: ", 7);
-                    vterm_write(&vt, err_str, strlen(err_str));
-                    vterm_write(&vt, "\n", 1);
+                    vterm_write(vterm_w, "ERROR: ", 7);
+                    vterm_write(vterm_w, err_str, strlen(err_str));
+                    vterm_write(vterm_w, "\n", 1);
                     continue;
                 }
                 ssize_t bytes;
                 unsigned char buf[256];
                 while ((bytes = read(child->out_fd, buf, 256))) {
                     if (bytes < 0) break;
-                    vterm_write(&vt, buf, bytes);
+                    vterm_write(vterm_w, buf, bytes);
                 }
                 int status;
                 waitpid(child->pid, &status, 0);
                 if (WIFEXITED(status)) {
                     printf("%s exited %d\n", cmd, WEXITSTATUS(status));
                 }
-                vterm_draw(&vt);
+                widget_draw(vterm_w);
                 terminal_refresh();
             }
         }

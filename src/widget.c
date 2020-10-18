@@ -18,6 +18,14 @@ widget_t *widget_new(widget_t config) {
     if (w->cls == NULL) {
         w->cls = &no_widget_cls;
     }
+    if (w->cls->init) {
+        int err = w->cls->init(w);
+        if (err) {
+            // TODO log errors
+            smfree(&widget_pool, w);
+            return NULL;
+        }
+    }
     return w;
 }
 

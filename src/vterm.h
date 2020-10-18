@@ -1,4 +1,4 @@
-/* Thy vterminal emulator */
+/* Thy terminal emulator widget */
 #include "vec.h"
 #include "BearLibTerminal.h"
 #include "vtparse.h"
@@ -37,7 +37,7 @@ typedef vec_t(vterm_cell_t) vec_vterm_cell_t;
 
 typedef struct {
     int flags;
-    int left, top, width, height;
+    int width, height;
     int curs_x, curs_y;
     int lines, scroll_pos;
     vtparse_t parser;
@@ -46,10 +46,22 @@ typedef struct {
     vec_uchar_t out_buf;
 } vterm_t;
 
-int vterm_init(vterm_t *vt, int left, int top, int width, int height);
-void vterm_deinit(vterm_t *t);
-int vterm_write(vterm_t *t, unsigned char *data, unsigned int data_len);
-unsigned char *vterm_read(vterm_t *t);
+/*
+ * Write bytes to the vterm. encoding of data is assumed to be utf-8
+ */
+int vterm_write(widget_t *w, unsigned char *data, unsigned int data_len);
+
+/*
+ * Write wide chars directly to the vterm.
+ */
+int vterm_writew(widget_t *w, int *data, unsigned int data_len);
+
+/*
+ * Return a pointer to any output bytes written by the vterm and clears
+ * the vterm output buffer. returns NULL if nothing has been written. 
+ * Caller must free the pointer returned.
+ */
+unsigned char *vterm_read(widget_t *w);
 
 widget_cls vterm_widget;
 

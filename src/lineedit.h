@@ -6,12 +6,12 @@ typedef enum {
     lineedit_changed = 1,
     lineedit_confirmed = 3,
     lineedit_cancelled = 4,
-} lineedit_state;
+} lineedit_state_e;
 
 typedef struct {
     int curs, curs_vis;
     unsigned int blink_time, elapsed;
-    lineedit_state state;
+    lineedit_state_e state;
     vec_wchar_t buf;
 } lineedit_t;
 
@@ -19,3 +19,4 @@ widget_cls lineedit_widget;
 
 int lineedit_insert(widget_t *w, wchar_t ch);
 void lineedit_clear(widget_t *w);
+lineedit_state_e lineedit_state(widget_t *w);
