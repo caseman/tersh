@@ -157,6 +157,16 @@ int main(int argc, char* argv[]) {
             if (key == TK_ESCAPE || key == TK_CLOSE) {
                 break;
             }
+            if (key == TK_RESIZED) {
+                root_w->min_width = terminal_state(TK_WIDTH),
+                root_w->max_width = terminal_state(TK_WIDTH),
+                root_w->min_height = terminal_state(TK_HEIGHT),
+                root_w->max_height = terminal_state(TK_HEIGHT),
+                widget_layout(root_w, 0, 0, terminal_state(TK_WIDTH), terminal_state(TK_HEIGHT));
+                widget_draw(root_w);
+                terminal_refresh();
+                continue;
+            }
             line_ed_w->cls->handle_ev(line_ed_w, key);
         }
 

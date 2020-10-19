@@ -30,11 +30,13 @@ void parser_handle(vtparse_t *parser, vtparse_action_t action, unsigned int ch) 
             // Mark starting line dirty
             cell->flags |= VTCELL_DIRTY_FLAG;
             cell += x;
+            if (x == 0) {
+                cell->flags |= VTCELL_STARTS_LINE;
+            }
 
             while (*print_ch) {
                 if (++x == w) {
-                    // EOL, mark cell as wrapped and start next line
-                    cell->flags |= VTCELL_WRAPPED_FLAG;
+                    // EOL
                     x = 0;
                     y++;
                 }
@@ -118,10 +120,48 @@ int vterm_handle_ev(widget_t *w, int event) {
 
 void vterm_layout(widget_t *w) {
     vterm_t *vt = widget_data(w, &vterm_widget);
-    vec_reserve(&vt->line_buf, w->width * w->height);
+    if (vt->width != w->width && vt->line_buf.length) {
+        // Reflow content
+        vterm_cell_t *old = vt->line_buf.data;
+        vec_init(&vt->line_buf);
+        printf("Old: %d,%d | New %d,%d\n", vt->width, vt->height, w->width, w->height);
+        int new_size = w->width * w->height;
+        int old_size = vt->width * vt->lines;
+        vec_reserve(&vt->line_buf, new_size > old_size ? new_size : old_size);
+        int x = 0;
+        int y = 0;
+        vterm_cell_t *cell;
+        vterm_cell_t *end = old + vt->width * vt->lines;
+        for (cell = old; cell < end; cell++, x++) {
+            if (x >= w->width) {
+                // skip trailing empty cells when narrowing
+                while (cell < end && !cell->ch) {
+                    cell++;
+                }
+                if (cell == end) break;
+                // wrap
+                x = 0;
+                y++;
+            }
+            if (cell->flags & VTCELL_STARTS_LINE && x > 0) {
+                // Skip to start of next line
+                vec_push_zeros(&vt->line_buf, w->width - x);
+                x = 0;
+                y++;
+            }
+            if(x == 0) printf("line start y=%d %d then %d\n", y, (cell-1)->ch, cell->ch);
+            vec_push(&vt->line_buf, *cell);
+        }
+        if (x > 0 && x < w->width - 1) {
+            // Fill out end of last line
+            vec_push_zeros(&vt->line_buf, (w->width - 1) - x);
+        }
+        vt->lines = y + 1;
+        free(old);
+    }
     vt->width = w->width;
     vt->height = w->height;
-    // TODO reflow
+    w->flags |= WIDGET_NEEDS_REDRAW;
 }
 
 void vterm_draw(widget_t *w) {
