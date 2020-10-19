@@ -124,7 +124,6 @@ void vterm_layout(widget_t *w) {
         // Reflow content
         vterm_cell_t *old = vt->line_buf.data;
         vec_init(&vt->line_buf);
-        printf("Old: %d,%d | New %d,%d\n", vt->width, vt->height, w->width, w->height);
         int new_size = w->width * w->height;
         int old_size = vt->width * vt->lines;
         vec_reserve(&vt->line_buf, new_size > old_size ? new_size : old_size);
@@ -149,7 +148,6 @@ void vterm_layout(widget_t *w) {
                 x = 0;
                 y++;
             }
-            if(x == 0) printf("line start y=%d %d then %d\n", y, (cell-1)->ch, cell->ch);
             vec_push(&vt->line_buf, *cell);
         }
         if (x > 0 && x < w->width - 1) {
