@@ -138,6 +138,10 @@ int process_poll(process_mgr_t *mgr, int timeout) {
             }
         }
         if (pid < 0) {
+            if (errno == ECHILD) {
+                // No child processes
+                break;
+            }
             mgr->event_cb(NULL, -1, PROCESS_WAITPID_ERR, errno);
         }
     } while (pid > 0);

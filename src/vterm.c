@@ -119,7 +119,19 @@ int vterm_process_data_cb(process_t *p, int fd, unsigned char *data, int data_le
 
 void vterm_process_event_cb(process_t *p, int fd, process_event_t event, intmax_t val) {
     // TODO handle process events
-    printf("Got process event: fd=%d ev=%d\n", fd, event);
+    char *name = "NONE";
+    if (p != NULL) {
+        if (fd == p->in_fd) {
+            name = "in";
+        } else if (fd == p->err_fd) {
+            name = "err";
+        } else if (fd == p->out_fd) {
+            name = "out";
+        }
+    } else {
+        printf("error: %s\n", strerror(val));
+    }
+    printf("Got process event: fd=%s(%d) ev=%d val=0x%lx(%ld)\n", name, fd, event, val, val);
 }
 
 int vterm_handle_ev(widget_t *w, int event) {
