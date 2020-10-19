@@ -3,6 +3,7 @@
 #include "BearLibTerminal.h"
 #include "vtparse.h"
 #include "widget.h"
+#include "process.h"
 
 #ifndef VTERM_H
 #define VTERM_H
@@ -41,6 +42,7 @@ typedef struct {
     int curs_x, curs_y;
     int lines, scroll_pos;
     vtparse_t parser;
+    process_t *process;
     vec_vterm_style_t styles;
     vec_vterm_cell_t line_buf;
     vec_uchar_t out_buf;
@@ -62,6 +64,13 @@ int vterm_writew(widget_t *w, int *data, unsigned int data_len);
  * Caller must free the pointer returned.
  */
 unsigned char *vterm_read(widget_t *w);
+
+/*
+ * Callback functions to use with process_spawn() when attaching the
+ * vterm to a process.
+ */
+int vterm_process_data_cb(process_t *p, int fd, unsigned char *data, int data_len);
+void vterm_process_event_cb(process_t *p, int fd, process_event_t event, intmax_t val);
 
 widget_cls vterm_widget;
 

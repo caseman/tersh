@@ -95,6 +95,36 @@ void widget_test() {
 }
 */
 
+void parse_cmd(vec_wchar_t *input, vec_char_t *cmd_line, vec_str_t *argv) {
+    cmd_line->length = 0;
+    argv->length = 0;
+    vec_reserve(cmd_line, input->length);
+    vec_push(argv, cmd_line->data);
+    int i = 0;
+    while (input->data[i] == ' ' && i < input->length) i++;
+    for(; i < input->length; i++) {
+        if (input->data[i] == ' ') {
+            vec_push(cmd_line, 0);
+            break;
+        }
+        vec_push(cmd_line, input->data[i]);
+    }
+    while (i < input->length) {
+        while (input->data[i] == ' ' && i < input->length) i++;
+        if (i == input->length) break;
+        vec_push(argv, cmd_line->data + cmd_line->length);
+        for(; i < input->length; i++) {
+            if (input->data[i] == ' ') {
+                vec_push(cmd_line, 0);
+                break;
+            }
+            vec_push(cmd_line, input->data[i]);
+        }
+    }
+    vec_push(cmd_line, 0);
+    vec_push(argv, 0);
+}
+
 int main(int argc, char* argv[]) {
     char *path = strdup(argv[0]);
     char *dirpath = dirname(path);
@@ -106,6 +136,11 @@ int main(int argc, char* argv[]) {
         "input: filter={keyboard}",
         dirpath
     );
+
+    process_mgr_t process_mgr = (process_mgr_t){
+        .data_cb = vterm_process_data_cb,
+        .event_cb = vterm_process_event_cb,
+    };
 
     widget_t *root_w = widget_new((widget_t){
         .anchor = ANCHOR_BOTTOM,
@@ -123,7 +158,7 @@ int main(int argc, char* argv[]) {
         .cls = &lineedit_widget,
         .parent = root_w,
         .anchor = ANCHOR_BOTTOM,
-        .order = 1,
+        .order = 0,
         .min_height = 1,
         .max_height = -1,
         .min_width = 10,
@@ -131,11 +166,10 @@ int main(int argc, char* argv[]) {
         .data = &le,
     });
 
-    widget_t *vterm_w = widget_new((widget_t){
-        .cls = &vterm_widget,
+    widget_t *vterm_container = widget_new((widget_t){
         .parent = root_w,
         .anchor = ANCHOR_BOTTOM,
-        .order = 2,
+        .order = 1,
         .min_height = 1,
         .max_height = -1,
         .min_width = 10,
@@ -146,10 +180,16 @@ int main(int argc, char* argv[]) {
     widget_draw(root_w);
     terminal_refresh();
 
+    vec_char_t cmd_line;
+    vec_init(&cmd_line);
+    vec_str_t child_argv;
+    vec_init(&child_argv);
+    process_t *child;
+
     while (1) {
         if (!terminal_has_input()) {
-            terminal_delay(1);
-            widget_update(root_w, 1);
+            process_poll(&process_mgr, 5);
+            widget_update(root_w, 5);
         }
 
         if (terminal_has_input()) {
@@ -171,71 +211,20 @@ int main(int argc, char* argv[]) {
         }
 
         if (lineedit_state(line_ed_w) == lineedit_confirmed) {
-            if (le.buf.length) {
-                vterm_writew(vterm_w, le.buf.data, le.buf.length);
-            }
-            vterm_write(vterm_w, (unsigned char *)"\n", 1);
+            parse_cmd(&le.buf, &cmd_line, &child_argv);
             lineedit_clear(line_ed_w);
-        }
-
-        if ((vterm_w->flags | line_ed_w->flags) & WIDGET_NEEDS_REDRAW) {
-            widget_relayout(root_w);
-            widget_draw(root_w);
-            terminal_refresh();
-        }
-    }
-
-    terminal_close();
-    exit(0);
-
-    vec_char_t cmd_line;
-    vec_init(&cmd_line);
-    vec_reserve(&cmd_line, 128);
-    vec_str_t child_argv;
-    vec_init(&child_argv);
-
-    process_mgr_t process_mgr;
-    process_t *child;
-
-    while (1) {
-        while (!terminal_has_input()) {
-            terminal_delay(1);
-        }
-
-        if (terminal_has_input()) {
-            int key = terminal_read();
-            if (key == TK_ESCAPE || key == TK_CLOSE) {
-                break;
-            }
-            if (0) {
-                cmd_line.length = 0;
-                child_argv.length = 0;
-                const char *cmd = cmd_line.data;
-                vec_push(&child_argv, cmd_line.data);
-                int i = 0;
-                for(; i < le.buf.length; i++) {
-                    if (le.buf.data[i] == ' ') {
-                        vec_push(&cmd_line, 0);
-                        break;
-                    }
-                    vec_push(&cmd_line, le.buf.data[i]);
-                }
-                while (i < le.buf.length) {
-                    while (le.buf.data[i] == ' ' && i < le.buf.length) i++;
-                    if (i == le.buf.length) break;
-                    vec_push(&child_argv, cmd_line.data + cmd_line.length);
-                    for(; i < le.buf.length; i++) {
-                        if (le.buf.data[i] == ' ') {
-                            vec_push(&cmd_line, 0);
-                            break;
-                        }
-                        vec_push(&cmd_line, le.buf.data[i]);
-                    }
-                }
-                vec_push(&cmd_line, 0);
-                vec_push(&child_argv, 0);
-
-                child = process_spawn(&process_mgr, NULL, cmd, child_argv.data);
+            if (cmd_line.length) {
+                widget_t *vterm_w = widget_new((widget_t){
+                    .cls = &vterm_widget,
+                    .parent = vterm_container,
+                    .anchor = ANCHOR_BOTTOM,
+                    .order = -process_mgr.processes.length,
+                    .min_height = 1,
+                    .max_height = -1,
+                    .min_width = 10,
+                    .max_width = -1,
+                });
+                child = process_spawn(&process_mgr, vterm_w, cmd_line.data, child_argv.data);
                 if (child == NULL) {
                     char *err_str = strerror(errno);
                     vterm_write(vterm_w, "ERROR: ", 7);
@@ -243,22 +232,15 @@ int main(int argc, char* argv[]) {
                     vterm_write(vterm_w, "\n", 1);
                     continue;
                 }
-                ssize_t bytes;
-                unsigned char buf[256];
-                while ((bytes = read(child->out_fd, buf, 256))) {
-                    if (bytes < 0) break;
-                    vterm_write(vterm_w, buf, bytes);
-                }
-                int status;
-                waitpid(child->pid, &status, 0);
-                if (WIFEXITED(status)) {
-                    printf("%s exited %d\n", cmd, WEXITSTATUS(status));
-                }
-                widget_draw(vterm_w);
-                terminal_refresh();
             }
         }
+
+        widget_relayout(root_w);
+        widget_draw(root_w);
+        terminal_refresh();
+        printf("\n");
     }
+
     terminal_close();
     return 0;
 }

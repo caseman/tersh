@@ -113,6 +113,15 @@ unsigned char *vterm_read(widget_t *w) {
     return NULL;
 }
 
+int vterm_process_data_cb(process_t *p, int fd, unsigned char *data, int data_len) {
+    return vterm_write(p->ref, data, data_len);
+}
+
+void vterm_process_event_cb(process_t *p, int fd, process_event_t event, intmax_t val) {
+    // TODO handle process events
+    printf("Got process event: fd=%d ev=%d\n", fd, event);
+}
+
 int vterm_handle_ev(widget_t *w, int event) {
     assert(w->cls == &vterm_widget);
     return 0;

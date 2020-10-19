@@ -2,6 +2,9 @@
 #include "poll.h"
 #include "vec.h"
 
+#ifndef PROCESS_H
+#define PROCESS_H
+
 typedef enum {
     PROCESS_EXITED = 1,
     PROCESS_POLL_EVENT = 2,
@@ -14,7 +17,7 @@ typedef enum {
 typedef struct process process_t;
 
 typedef int (*process_data_cb)(process_t *p, int fd, unsigned char *data, int data_len);
-typedef int (*process_event_cb)(process_t *p, int fd, process_event_t event, intmax_t val);
+typedef void (*process_event_cb)(process_t *p, int fd, process_event_t event, intmax_t val);
 
 struct process {
     pid_t pid;
@@ -34,8 +37,9 @@ typedef struct {
     process_event_cb event_cb;
 } process_mgr_t;
 
-void process_mgr_init(process_mgr_t *mgr, process_data_cb data_cb, process_event_cb event_cb);
 process_t *process_spawn(process_mgr_t *mgr, void* ref, const char *file, char *const argv[]);
 void process_del(process_mgr_t *mgr, process_t *p);
 void process_write(process_t *p, unsigned char *data, int data_len);
 int process_poll(process_mgr_t *mgr, int timeout);
+
+#endif

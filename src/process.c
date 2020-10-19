@@ -13,13 +13,6 @@
 
 #define READ_BUFFER_SIZE 1024
 
-void process_mgr_init(process_mgr_t *mgr, process_data_cb data_cb, process_event_cb event_cb) {
-    assert(mgr);
-    vec_init(&mgr->processes);
-    mgr->data_cb = data_cb;
-    mgr->event_cb = event_cb;
-}
-
 static int process_fork(process_t *child) {
     int in_pipe[2], out_pipe[2], err_pipe[2];
     if (pipe(in_pipe) != 0) return -1;
