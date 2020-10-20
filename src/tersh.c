@@ -98,6 +98,7 @@ void widget_test() {
 void parse_cmd(vec_wchar_t *input, vec_char_t *cmd_line, vec_str_t *argv) {
     cmd_line->length = 0;
     argv->length = 0;
+    if (!input->length) return;
     vec_reserve(cmd_line, input->length);
     vec_push(argv, cmd_line->data);
     int i = 0;
