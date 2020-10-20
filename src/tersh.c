@@ -95,35 +95,26 @@ void widget_test() {
 }
 */
 
-void parse_cmd(vec_wchar_t *input, vec_char_t *cmd_line, vec_str_t *argv) {
-    cmd_line->length = 0;
+char *parse_cmd(vec_wchar_t *input, vec_str_t *argv) {
     argv->length = 0;
-    if (!input->length) return;
-    vec_reserve(cmd_line, input->length);
-    vec_push(argv, cmd_line->data);
+    char *cmd = calloc(input->length + 1, 1);
+    if (cmd == NULL) return NULL;
+    char *c = cmd;
     int i = 0;
-    while (input->data[i] == ' ' && i < input->length) i++;
-    for(; i < input->length; i++) {
-        if (input->data[i] == ' ') {
-            vec_push(cmd_line, 0);
-            break;
-        }
-        vec_push(cmd_line, input->data[i]);
-    }
     while (i < input->length) {
-        while (input->data[i] == ' ' && i < input->length) i++;
+        while (i < input->length && input->data[i] == ' ') i++;
         if (i == input->length) break;
-        vec_push(argv, cmd_line->data + cmd_line->length);
+        vec_push(argv, c);
         for(; i < input->length; i++) {
             if (input->data[i] == ' ') {
-                vec_push(cmd_line, 0);
+                *(c++) = 0;
                 break;
             }
-            vec_push(cmd_line, input->data[i]);
+            *(c++) = input->data[i];
         }
     }
-    vec_push(cmd_line, 0);
     vec_push(argv, 0);
+    return cmd;
 }
 
 int main(int argc, char* argv[]) {
@@ -181,12 +172,6 @@ int main(int argc, char* argv[]) {
     widget_draw(root_w);
     terminal_refresh();
 
-    vec_char_t cmd_line;
-    vec_init(&cmd_line);
-    vec_str_t child_argv;
-    vec_init(&child_argv);
-    process_t *child;
-
     while (1) {
         if (!terminal_has_input()) {
             process_poll(&process_mgr, 5);
@@ -212,9 +197,13 @@ int main(int argc, char* argv[]) {
         }
 
         if (lineedit_state(line_ed_w) == lineedit_confirmed) {
-            parse_cmd(&le.buf, &cmd_line, &child_argv);
+            vec_str_t child_argv = NULL_VEC;
+            process_t *child;
+
+            char *cmd = parse_cmd(&le.buf, &child_argv);
             lineedit_clear(line_ed_w);
-            if (cmd_line.length) {
+            if (cmd == NULL) break;
+            if (*cmd) {
                 widget_t *vterm_w = widget_new((widget_t){
                     .cls = &vterm_widget,
                     .parent = vterm_container,
@@ -225,7 +214,7 @@ int main(int argc, char* argv[]) {
                     .min_width = 10,
                     .max_width = -1,
                 });
-                child = process_spawn(&process_mgr, vterm_w, cmd_line.data, child_argv.data);
+                child = process_spawn(&process_mgr, vterm_w, cmd, child_argv.data);
                 if (child == NULL) {
                     char *err_str = strerror(errno);
                     vterm_write(vterm_w, "ERROR: ", 7);
@@ -234,6 +223,7 @@ int main(int argc, char* argv[]) {
                     continue;
                 }
             }
+            free(cmd);
         }
 
         widget_relayout(root_w);
