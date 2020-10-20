@@ -36,7 +36,7 @@ int lineedit_handle_ev(widget_t *w, int event) {
                 vec_pop(&le->buf);
                 le->curs = le->buf.length;
             } else if (le->curs > 0) {
-                vec_del(&le->buf, le->curs);
+                vec_del(&le->buf, le->curs - 1);
                 le->curs--;
             }
             le->state = lineedit_changed;
@@ -61,6 +61,7 @@ int lineedit_handle_ev(widget_t *w, int event) {
             }
     }
     if (le->state == lineedit_changed) {
+        le->curs_vis = 1;
         w->flags |= WIDGET_NEEDS_REDRAW;
         return 1;
     }
