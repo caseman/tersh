@@ -57,11 +57,15 @@ process_t *process_spawn(process_mgr_t *mgr, void* ref, const char *file, char *
         return NULL;
     }
     if (pid > 0) {
+        // Parent
         vec_push(&mgr->processes, child_p);
         return child_p;
     }
+    // Child
     execvp(file, argv);
-    exit(errno);
+    // Exec failed
+    perror(file);
+    _Exit(1); // Exit child without invoking parent atexit hooks
 }
 
 void process_del(process_mgr_t *mgr, process_t *p) {
