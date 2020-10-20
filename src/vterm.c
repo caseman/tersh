@@ -4,17 +4,47 @@
 #include "vterm.h"
 #include "smalloc.h"
 
+#define DEFAULT_TAB_WIDTH 8
+
+#define CSI_NO_PARAMS()\
+    (vt->parser.num_params == 0)
+#define CSI_PARAM(i)\
+    (vt->parser.num_params > (i) ? vt->parser.params[(i)] : -1)
+
 smalloc_pool_t vterm_pool = SMALLOC_POOL(sizeof(vterm_t));
+
+static void set_default_tabs(vterm_t *vt) {
+    assert(vt->line_buf.data);
+    if (vt->flags & VT_TABS_SET || vt->width < DEFAULT_TAB_WIDTH) return;
+    vterm_cell_t *cell = vt->line_buf.data + DEFAULT_TAB_WIDTH;
+    for (int x = DEFAULT_TAB_WIDTH; x < vt->width; x++, cell++) {
+        if (x % DEFAULT_TAB_WIDTH == 0) {
+            cell->flags |= VTCELL_TAB_STOP;
+        }
+    }
+}
 
 static int add_lines(vterm_t *vt, int count) {
     if (count <= 0) return 0;
     vt->lines += count;
     vt->flags |= VT_NEEDS_REDRAW;
-    return vec_push_zeros(&vt->line_buf, count * vt->width);
+    int err = vec_push_zeros(&vt->line_buf, count * vt->width);
+    if (err) return err;
+    if (vt->lines == 1) {
+        set_default_tabs(vt);
+    }
+    return 0;
 }
 
 void parser_handle(vtparse_t *parser, vtparse_action_t action, unsigned int ch) {
     vterm_t *vt = parser->user_data;
+    if (vt->curs_x > vt->width - 1) {
+        vt->curs_x = vt->width - 1;
+    }
+    if (!vt->lines) {
+        int err = add_lines(vt, 1);
+        if (err) return;
+    }
     switch (action) {
         case VTPARSE_ACTION_PRINT:
         {
@@ -35,7 +65,7 @@ void parser_handle(vtparse_t *parser, vtparse_action_t action, unsigned int ch) 
             }
 
             while (*print_ch) {
-                if (++x == w) {
+                if (x++ == w) {
                     // EOL
                     x = 0;
                     y++;
@@ -51,16 +81,56 @@ void parser_handle(vtparse_t *parser, vtparse_action_t action, unsigned int ch) 
         case VTPARSE_ACTION_EXECUTE:
         {
             switch (ch) {
+                case '\r':
+                    vt->curs_x = 0;
+                    return;
                 case '\n':
                     vt->curs_x = 0;
                     vt->curs_y++;
                     add_lines(vt, vt->curs_y - vt->lines);
                     return;
+                case '\t':
+                    while (vt->curs_x < vt->width - 1) {
+                        vt->curs_x++;
+                        if (vt->line_buf.data[vt->curs_x].flags & VTCELL_TAB_STOP) {
+                            return;
+                        }
+                    }
+                    return;
+            }
+        }
+        case VTPARSE_ACTION_ESC_DISPATCH:
+        {
+            switch (ch) {
+                case 'H': // Tab Set
+                    vt->line_buf.data[vt->curs_x].flags |= VTCELL_TAB_STOP;
+                    vt->flags |= VT_TABS_SET;
+                    return;
+            }
+        }
+        case VTPARSE_ACTION_CSI_DISPATCH:
+        {
+            switch (ch) {
+                case 'g': // Tab Clear
+                    if (CSI_NO_PARAMS() || CSI_PARAM(0) == 0) {
+                        // Clear tab at cursor position
+                        vt->line_buf.data[vt->curs_x].flags &= ~VTCELL_TAB_STOP;
+                        return;
+                    }
+                    if (CSI_PARAM(0) == 3) {
+                        // Clear all tabs
+                        vterm_cell_t *cell = vt->line_buf.data;
+                        for (int x = 0; x < vt->width; x++, cell++) {
+                            cell->flags &= ~VTCELL_TAB_STOP;
+                        }
+                        vt->flags |= VT_TABS_SET;
+                        return;
+                    }
             }
         }
         default:
         {
-            fprintf(stderr, "vterm ignored %s (%x) ", ACTION_NAMES[action], ch);
+            fprintf(stderr, "vterm ignored %s %o(%x) ", ACTION_NAMES[action], ch, ch);
             for (int i = 0; i < parser->num_params; i++) {
                 if ((i+1) < parser->num_params) {
                     fprintf(stderr, "%d, ", parser->params[i]);
@@ -79,7 +149,6 @@ int vterm_init(widget_t *w) {
     w->data = vt;
     vtparse_init(&vt->parser, parser_handle);
     vt->parser.user_data = vt;
-    vt->flags = VT_NEEDS_REDRAW;
     return 0;
 }
 
@@ -141,6 +210,9 @@ int vterm_handle_ev(widget_t *w, int event) {
 
 void vterm_layout(widget_t *w) {
     vterm_t *vt = widget_data(w, &vterm_widget);
+    if (w->width < 1) {
+        w->width = 1;
+    }
     if (vt->width != w->width && vt->line_buf.length) {
         // Reflow content
         vterm_cell_t *old = vt->line_buf.data;
@@ -176,11 +248,15 @@ void vterm_layout(widget_t *w) {
             vec_push_zeros(&vt->line_buf, (w->width - 1) - x);
         }
         vt->lines = y + 1;
+        set_default_tabs(vt);
         free(old);
     }
     w->max_height = vt->lines > 0 ? vt->lines : 1;
     vt->width = w->width;
     vt->height = w->height;
+    if (vt->curs_x > vt->width - 1) {
+        vt->curs_x = vt->width - 1;
+    }
     w->flags |= WIDGET_NEEDS_REDRAW;
 }
 
