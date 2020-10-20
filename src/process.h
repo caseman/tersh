@@ -12,6 +12,7 @@ typedef enum {
     PROCESS_WRITE_ERR = 4,
     PROCESS_READ_ERR = 5,
     PROCESS_WAITPID_ERR = 6,
+    PROCESS_CLOSED_FD = 7,
 } process_event_t;
 
 typedef struct process process_t;

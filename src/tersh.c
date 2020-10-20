@@ -170,7 +170,7 @@ int main(int argc, char* argv[]) {
         .parent = root_w,
         .anchor = ANCHOR_BOTTOM,
         .order = 1,
-        .min_height = 1,
+        .min_height = -1,
         .max_height = -1,
         .min_width = 10,
         .max_width = -1,
@@ -220,7 +220,7 @@ int main(int argc, char* argv[]) {
                     .anchor = ANCHOR_BOTTOM,
                     .order = -process_mgr.processes.length,
                     .min_height = 1,
-                    .max_height = -1,
+                    .max_height = 1,
                     .min_width = 10,
                     .max_width = -1,
                 });
@@ -238,7 +238,6 @@ int main(int argc, char* argv[]) {
         widget_relayout(root_w);
         widget_draw(root_w);
         terminal_refresh();
-        printf("\n");
     }
 
     terminal_close();

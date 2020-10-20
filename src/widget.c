@@ -1,6 +1,7 @@
 #include <string.h>
 #include "smalloc.h"
 #include "widget.h"
+#include "BearLibTerminal.h"
 
 smalloc_pool_t widget_pool = SMALLOC_POOL(sizeof(widget_t));
 
@@ -101,12 +102,21 @@ static void order_children(widget_t *w) {
 void widget_layout(widget_t *w, int left, int top, int right, int bottom) {
     int height = bottom - top;
     int max_height = w->max_height < 0 || w->max_height > height ? height : w->max_height;
+    int min_height = w->min_height >= 0 ? w->min_height : max_height + w->min_height + 1;
     int width = right - left;
     int max_width = w->max_width < 0 || w->max_width > width ? width : w->max_width;
+    int min_width = w->min_width >= 0 ? w->min_width : max_width + w->min_width + 1;
 
     if (!w->children.length) {
-        w->width = max_width > w->min_width ? max_width : w->min_width;
-        w->height = max_height > w->min_height ? max_height : w->min_height;
+        w->width = max_width > min_width ? max_width : min_width;
+        w->height = max_height > min_height ? max_height : min_height;
+        /*
+        if (w->order < 0)
+            printf("layout %d maxw=%d minw=%d w=%d maxh=%d minh=%d h=%d\n",
+                w->order,
+                w->max_width, w->min_width, w->width,
+                w->max_height, w->min_height, w->height);
+        */
         if (w->cls->layout) w->cls->layout(w);
         place_widget(w, left, top, right, bottom);
         return;
@@ -118,13 +128,13 @@ void widget_layout(widget_t *w, int left, int top, int right, int bottom) {
     switch (w->anchor) {
         case ANCHOR_LEFT:
         case ANCHOR_RIGHT:
-            w->width = w->min_width;
+            w->width = min_width;
             w->height = height;
             break;
         case ANCHOR_TOP:
         case ANCHOR_BOTTOM:
             w->width = width;
-            w->height = w->min_height;
+            w->height = min_height;
             break;
     }
 
@@ -200,6 +210,11 @@ void widget_relayout(widget_t *w) {
 }
 
 void widget_draw(widget_t *w) {
+    if (w->order % 2) {
+        terminal_bkcolor(0xff222222);
+    } else {
+        terminal_bkcolor(0xff444444);
+    }
     /* Note this leaves it up to the widget drawing routines to clear
      * the widget rect if it is needed */
     if (w->cls->draw) w->cls->draw(w);

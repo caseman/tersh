@@ -178,6 +178,7 @@ void vterm_layout(widget_t *w) {
         vt->lines = y + 1;
         free(old);
     }
+    w->max_height = vt->lines > 0 ? vt->lines : 1;
     vt->width = w->width;
     vt->height = w->height;
     w->flags |= WIDGET_NEEDS_REDRAW;

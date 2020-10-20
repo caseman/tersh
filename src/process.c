@@ -102,7 +102,7 @@ static void do_write_in(process_mgr_t *mgr, process_t *p) {
     mgr->event_cb(p, p->in_fd, PROCESS_WRITE, retval);
 }
 
-static void do_read_fd(process_mgr_t *mgr, process_t *p, int fd) {
+static ssize_t do_read_fd(process_mgr_t *mgr, process_t *p, int fd) {
     ssize_t retval;
     unsigned char buf[READ_BUFFER_SIZE];
     do {
@@ -110,11 +110,20 @@ static void do_read_fd(process_mgr_t *mgr, process_t *p, int fd) {
     } while (retval < 0 && errno == EINTR);
     if (retval < 0) {
         mgr->event_cb(p, fd, PROCESS_READ_ERR, errno);
-        return;
+        return retval;
     }
     if (retval) {
         mgr->data_cb(p, fd, buf, retval);
     }
+    return retval;
+}
+
+void do_close_fd(process_mgr_t *mgr, process_t *p, int *fd) {
+    assert(*fd >= 0); // Assert not already closed
+    int retval = close(*fd);
+    // TODO log errors
+    mgr->event_cb(p, *fd, PROCESS_CLOSED_FD, retval == 0 ? retval : errno);
+    *fd = -*fd;
 }
 
 int process_poll(process_mgr_t *mgr, int timeout) {
@@ -169,17 +178,40 @@ int process_poll(process_mgr_t *mgr, int timeout) {
             if (p->in_revents & POLLOUT && p->write_buf.length) {
                 do_write_in(mgr, p);
             }
+            if ((p->in_revents & POLLHUP) && !(p->in_revents & POLLOUT)) {
+                do_close_fd(mgr, p, &p->in_fd);
+            }
+            if (p->in_revents & POLLNVAL && p->in_fd > 0) {
+                // fd was closed somewhere, mark it closed
+                p->in_fd = -p->in_fd;
+            }
         }
         if (p->out_revents) {
             mgr->event_cb(p, p->out_fd, PROCESS_POLL_EVENT, p->out_revents);
+            ssize_t readval = 0;
             if (p->out_revents & POLLIN) {
-                do_read_fd(mgr, p, p->out_fd);
+                readval = do_read_fd(mgr, p, p->out_fd);
+            }
+            if (readval == 0 && p->out_revents & POLLHUP) {
+                do_close_fd(mgr, p, &p->out_fd);
+            }
+            if (p->out_revents & POLLNVAL && p->out_fd > 0) {
+                // fd was closed somewhere, mark it closed
+                p->out_fd = -p->out_fd;
             }
         }
         if (p->err_revents) {
             mgr->event_cb(p, p->err_fd, PROCESS_POLL_EVENT, p->err_revents);
-            if (p->out_revents & POLLIN) {
-                do_read_fd(mgr, p, p->err_fd);
+            ssize_t readval = 0;
+            if (p->err_revents & POLLIN) {
+                readval = do_read_fd(mgr, p, p->err_fd);
+            }
+            if (readval == 0 && p->err_revents & POLLHUP) {
+                do_close_fd(mgr, p, &p->err_fd);
+            }
+            if (p->err_revents & POLLNVAL && p->err_fd > 0) {
+                // fd was closed somewhere, mark it closed
+                p->err_fd = -p->err_fd;
             }
         }
         count -= (p->in_revents != 0 || p->out_revents != 0 || p->err_revents != 0);
