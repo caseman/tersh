@@ -12,6 +12,7 @@
 #include "vec.h"
 #include "process.h"
 #include "widget.h"
+#include "sys/time.h"
 
 #define curs_blink 500
 
@@ -117,6 +118,20 @@ char *parse_cmd(vec_wchar_t *input, vec_str_t *argv) {
     return cmd;
 }
 
+long long time_millis(void)
+{
+    struct timeval tv;
+    long long msec;
+
+    gettimeofday(&tv, NULL);
+
+    msec = tv.tv_sec;
+    msec *= 1000;
+    msec += tv.tv_usec / 1000;
+
+    return msec;
+}
+
 int main(int argc, char* argv[]) {
     char *path = strdup(argv[0]);
     char *dirpath = dirname(path);
@@ -172,10 +187,21 @@ int main(int argc, char* argv[]) {
     widget_draw(root_w);
     terminal_refresh();
 
+
+    long long last_time = time_millis();
+    long long now;
+    int dt = 0;
+
     while (1) {
         if (!terminal_has_input()) {
-            process_poll(&process_mgr, 5);
-            widget_update(root_w, 5);
+            do {
+                process_poll(&process_mgr, 30 - dt);
+                now = time_millis();
+                dt = now - last_time;
+            } while (!terminal_has_input() && dt < 30);
+            widget_update(root_w, dt);
+            last_time = now;
+            dt = 0;
         }
 
         if (terminal_has_input()) {
