@@ -6,6 +6,9 @@
 
 #define DEFAULT_TAB_WIDTH 8
 
+#define CURRENT_CELL()\
+    (add_lines(vt, vt->curs_y - vt->lines + 1),\
+     vt->line_buf.data + vt->curs_y * vt->width + vt->curs_x)
 #define CSI_NO_PARAMS()\
     (vt->parser.num_params == 0)
 #define CSI_PARAM(i)\
@@ -85,11 +88,16 @@ void parser_handle(vtparse_t *parser, vtparse_action_t action, unsigned int ch) 
                     vt->curs_x = 0;
                     return;
                 case '\n':
+                    if (vt->curs_x == 0) {
+                        CURRENT_CELL()->flags |= VTCELL_STARTS_LINE;
+                    }
                     vt->curs_x = 0;
                     vt->curs_y++;
-                    add_lines(vt, vt->curs_y - vt->lines);
                     return;
                 case '\t':
+                    if (vt->curs_x == 0) {
+                        CURRENT_CELL()->flags |= VTCELL_STARTS_LINE;
+                    }
                     while (vt->curs_x < vt->width - 1) {
                         vt->curs_x++;
                         if (vt->line_buf.data[vt->curs_x].flags & VTCELL_TAB_STOP) {
@@ -216,21 +224,26 @@ void vterm_layout(widget_t *w) {
     if (vt->width != w->width && vt->line_buf.length) {
         // Reflow content
         vterm_cell_t *old = vt->line_buf.data;
+        int old_len = vt->line_buf.length;
         vec_init(&vt->line_buf);
         int new_size = w->width * w->height;
         int old_size = vt->width * vt->lines;
         vec_reserve(&vt->line_buf, new_size > old_size ? new_size : old_size);
         int x = 0;
         int y = 0;
-        vterm_cell_t *cell;
-        vterm_cell_t *end = old + vt->width * vt->lines;
+        vterm_cell_t *cell, *start;
+        vterm_cell_t *end = old + old_len;
         for (cell = old; cell < end; cell++, x++) {
             if (x >= w->width) {
                 // skip trailing empty cells when narrowing
-                while (cell < end && !cell->ch) {
-                    cell++;
+                for (start = cell; start < end; start++) {
+                    if (start->flags & VTCELL_STARTS_LINE) {
+                        cell = start;
+                        break;
+                    }
+                    if (start->ch) break;
                 }
-                if (cell == end) break;
+                if (start == end) break;
                 // wrap
                 x = 0;
                 y++;
