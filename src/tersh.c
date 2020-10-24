@@ -5,6 +5,7 @@
 #include <string.h>
 #include <unistd.h>
 #include <libgen.h>
+#include <sys/time.h>
 #include "BearLibTerminal.h"
 //#include "tersh.h"
 #include "lineedit.h"
@@ -12,7 +13,7 @@
 #include "vec.h"
 #include "process.h"
 #include "widget.h"
-#include "sys/time.h"
+#include "st.h"
 
 #define curs_blink 500
 
@@ -173,6 +174,7 @@ int main(int argc, char* argv[]) {
         .data = &le,
     });
 
+    /*
     widget_t *vterm_container = widget_new((widget_t){
         .parent = root_w,
         .anchor = ANCHOR_BOTTOM,
@@ -182,9 +184,14 @@ int main(int argc, char* argv[]) {
         .min_width = 10,
         .max_width = -1,
     });
+    */
+
+    Term term;
+    tnew(&term, terminal_state(TK_WIDTH), terminal_state(TK_HEIGHT) - 2);
 
     widget_layout(root_w, 0, 0, terminal_state(TK_WIDTH), terminal_state(TK_HEIGHT));
     widget_draw(root_w);
+    tdraw(&term);
     terminal_refresh();
 
 
@@ -230,6 +237,9 @@ int main(int argc, char* argv[]) {
             lineedit_clear(line_ed_w);
             if (cmd == NULL) break;
             if (*cmd) {
+                ttynew(&term, NULL, cmd, "-", child_argv.data);
+                ttyread(&term);
+                /*
                 widget_t *vterm_w = widget_new((widget_t){
                     .cls = &vterm_widget,
                     .parent = vterm_container,
@@ -248,12 +258,14 @@ int main(int argc, char* argv[]) {
                     vterm_write(vterm_w, "\n", 1);
                     continue;
                 }
+                */
             }
             free(cmd);
         }
 
         widget_relayout(root_w);
         widget_draw(root_w);
+        tdraw(&term);
         terminal_refresh();
     }
 

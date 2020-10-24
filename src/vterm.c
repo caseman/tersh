@@ -294,11 +294,17 @@ void vterm_draw(widget_t *w) {
     // defensive: insure we don't draw beyond the end of the line buffer
     int bottom_y = w->top + w->height - (empty_lines_bottom > 0) * empty_lines_bottom;
     vterm_cell_t *cell = vt->line_buf.data + first_line * vt->width;
-    if (full_redraw) {
+    int bkcolor = terminal_state(TK_BKCOLOR);
+    if (1) {
         // Short circuit checking individual dirty flags and draw everything
         for (int screen_y = w->top + empty_lines_top; screen_y < bottom_y; screen_y++) {
             for (int screen_x = 0; screen_x < vt->width; screen_x++, cell++) {
-                if (cell->ch) terminal_put(screen_x, screen_y, cell->ch);
+                if (cell->flags & VTCELL_STARTS_LINE) {
+                    terminal_bkcolor(0xFF004400);
+                } else {
+                    terminal_bkcolor(0);
+                }
+                terminal_put(screen_x, screen_y, cell->ch ? cell->ch : 32);
                 cell->flags &= ~VTCELL_DIRTY_FLAG;
             }
         }

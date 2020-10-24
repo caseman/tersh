@@ -27,6 +27,8 @@ add_executable(tersh
     src/vterm.c
     src/process.c
     src/widget.c
+    src/st.c
+    src/st_widget.c
     ${RESOURCE_FILES}
 )
 

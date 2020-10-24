@@ -85,6 +85,8 @@ void lineedit_layout(widget_t *w) {
 
 void lineedit_draw(widget_t *w) {
     lineedit_t *le = widget_data(w, &lineedit_widget);
+    terminal_color(0xffffffff);
+    terminal_bkcolor(0xff000000);
     terminal_clear_area(w->left, w->top, w->width, w->height);
     int y = w->top;
     int x = w->left + 2;
