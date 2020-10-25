@@ -7,6 +7,7 @@
 #include <errno.h>
 #include <fcntl.h>
 #include <limits.h>
+#include <poll.h>
 #include <pwd.h>
 #include <stdarg.h>
 #include <stdio.h>
@@ -24,6 +25,7 @@
 #include "st.h"
 #include "st_config.h"
 #include "win.h"
+#include "poller.h"
 
 #if   defined(__linux)
  #include <pty.h>
@@ -42,7 +44,7 @@
 
 static void execsh(char *, char **);
 static void stty(char **);
-static void sigchld(int);
+static ssize_t write_buf(Term *term, const char *s, size_t n);
 static void ttywriteraw(Term *, const char *, size_t);
 
 static void csidump(Term *);
@@ -538,7 +540,7 @@ die(const char *errstr, ...)
 	va_start(ap, errstr);
 	vfprintf(stderr, errstr, ap);
 	va_end(ap);
-	exit(1);
+	// XXX close up shop?
 }
 
 void
@@ -553,6 +555,7 @@ execsh(char *cmd, char **args)
 			die("getpwuid: %s\n", strerror(errno));
 		else
 			die("who are you?\n");
+        return;
 	}
 
 	if ((sh = getenv("SHELL")) == NULL)
@@ -593,26 +596,46 @@ execsh(char *cmd, char **args)
 	_exit(1);
 }
 
-void
-sigchld(int a)
-{
-    return; // FIXME
-    /*
-	int stat;
-	pid_t p;
-
-	if ((p = waitpid(pid, &stat, WNOHANG)) < 0)
-		die("waiting for pid %hd failed: %s\n", pid, strerror(errno));
-
-	if (pid != p)
-		return;
-
-	if (WIFEXITED(stat) && WEXITSTATUS(stat))
-		die("child exited with status %d\n", WEXITSTATUS(stat));
-	else if (WIFSIGNALED(stat))
-		die("child terminated due to signal %d\n", WTERMSIG(stat));
-	_exit(0);
-    */
+static void
+on_poll(int fd, void *data, poller_event_t event, int val) {
+    Term *t = data;
+    ssize_t r = 0;
+    switch (event) {
+        case POLLER_CHILD_EXIT:
+            t->exitst = val;
+            return;
+        case POLLER_EVENTS:
+            if (val | POLLIN) {
+                r = term_read(t);
+                if (r < 0) return;
+            }
+            if ((val | POLLOUT) && t->wbuf.length) {
+                int n = t->wbuf.length - t->wbuf_offs;
+                r = write_buf(t, t->wbuf.data + t->wbuf_offs, n);
+                if (r < 0) return;
+                if (r == n) {
+                    t->wbuf.length = 0;
+                    t->wbuf_offs = 0;
+                } else {
+                    t->wbuf_offs += r;
+                }
+            }
+            if ((val | POLLHUP) && !r) {
+                if (t->cmdfd != -1) {
+                    close(t->cmdfd);
+                    t->cmdfd = -1;
+                }
+                if (t->iofd != -1) {
+                    close(t->iofd);
+                    t->iofd = -1;
+                }
+                if (t->wbuf.length) {
+                    fprintf(stderr, "pty HUP with %d bytes unwritten\n", t->wbuf.length);
+                }
+                vec_deinit(&t->wbuf);
+            }
+            break;
+    }
 }
 
 void
@@ -621,14 +644,18 @@ stty(char **args)
 	char cmd[_POSIX_ARG_MAX], **p, *q, *s;
 	size_t n, siz;
 
-	if ((n = strlen(stty_args)) > sizeof(cmd)-1)
+	if ((n = strlen(stty_args)) > sizeof(cmd)-1) {
 		die("incorrect stty parameters\n");
+        return;
+    }
 	memcpy(cmd, stty_args, n);
 	q = cmd + n;
 	siz = sizeof(cmd) - n;
 	for (p = args; p && (s = *p); ++p) {
-		if ((n = strlen(s)) > siz-1)
+		if ((n = strlen(s)) > siz-1) {
 			die("stty parameter length too long\n");
+            return;
+        }
 		*q++ = ' ';
 		memcpy(q, s, n);
 		q += n;
@@ -655,17 +682,25 @@ ttynew(Term *term, char *line, char *cmd, char *out, char **args)
 	}
 
 	if (line) {
-		if ((term->cmdfd = open(line, O_RDWR)) < 0)
+		if ((term->cmdfd = open(line, O_RDWR)) < 0) {
 			die("open line '%s' failed: %s\n",
 			    line, strerror(errno));
+            return -1;
+        }
 		dup2(term->cmdfd, 0);
 		stty(args);
 		return term->cmdfd;
 	}
 
 	/* seems to work fine on linux, openbsd and freebsd */
-	if (openpty(&m, &s, NULL, NULL, NULL) < 0)
+	if (openpty(&m, &s, NULL, NULL, NULL) < 0) {
 		die("openpty failed: %s\n", strerror(errno));
+        return -1;
+    }
+    int flags = fcntl(m, F_GETFL, 0);
+    if (fcntl(m, F_SETFL, flags | O_CLOEXEC) < 0) {
+        perror("fcntl failed to set pty flags\n");
+    }
 
 	switch (term->pid = fork()) {
 	case -1:
@@ -677,13 +712,17 @@ ttynew(Term *term, char *line, char *cmd, char *out, char **args)
 		dup2(s, 0);
 		dup2(s, 1);
 		dup2(s, 2);
-		if (ioctl(s, TIOCSCTTY, NULL) < 0)
+		if (ioctl(s, TIOCSCTTY, NULL) < 0) {
 			die("ioctl TIOCSCTTY failed: %s\n", strerror(errno));
+            _exit(1);
+        }
 		close(s);
 		close(m);
 #ifdef __OpenBSD__
-		if (pledge("stdio getpw proc exec", NULL) == -1)
+		if (pledge("stdio getpw proc exec", NULL) == -1) {
 			die("pledge\n");
+            _exit(1);
+        }
 #endif
 		execsh(cmd, args);
 		break;
@@ -694,14 +733,14 @@ ttynew(Term *term, char *line, char *cmd, char *out, char **args)
 #endif
 		close(s);
 		term->cmdfd = m;
-		// signal(SIGCHLD, sigchld); FIXME
+        poller_add(m, term->pid, term, on_poll);
 		break;
 	}
 	return term->cmdfd;
 }
 
 size_t
-ttyread(Term *term)
+term_read(Term *term)
 {
 	static char buf[BUFSIZ];
 	static int buflen = 0;
@@ -712,9 +751,11 @@ ttyread(Term *term)
 
 	switch (ret) {
 	case 0:
-		exit(0);
+		return 0;
 	case -1:
+        if (errno == EINTR || errno == EAGAIN || errno == EWOULDBLOCK) return -1;
 		die("couldn't read from shell: %s\n", strerror(errno));
+        return -1;
 	default:
 		buflen += ret;
 		written = twrite(term, buf, buflen, 0);
@@ -754,61 +795,55 @@ ttywrite(Term *term, const char *s, size_t n, int may_echo)
 	}
 }
 
-void
+static ssize_t
+write_buf(Term *term, const char *s, size_t n)
+{
+	ssize_t r;
+    size_t sn = n;
+	const size_t lim = 256;
+    while (n > 0) {
+        r = write(term->cmdfd, s, (n < lim)? n : lim);
+
+        if (r < 0) {
+            if (errno == EINTR || errno == EAGAIN || errno == EWOULDBLOCK) break;
+            perror("error writing to pty");
+            break;
+        }
+
+        s += r;
+        n -= r;
+    }
+
+    return sn - n;
+}
+
+static void
 ttywriteraw(Term *term, const char *s, size_t n)
 {
-	fd_set wfd, rfd;
 	ssize_t r;
-	size_t lim = 256;
 
-	/*
-	 * Remember that we are using a pty, which might be a modem line.
-	 * Writing too much will clog the line. That's why we are doing this
-	 * dance.
-	 * FIXME: Migrate the world to Plan 9.
-	 */
-	while (n > 0) {
-		FD_ZERO(&wfd);
-		FD_ZERO(&rfd);
-		FD_SET(term->cmdfd, &wfd);
-		FD_SET(term->cmdfd, &rfd);
+    if (term->wbuf.length) {
+        /* Already buffering, just append and exit */
+        vec_pusharr(&term->wbuf, s, n);
+        return;
+    }
 
-		/* Check if we can write. */
-		if (pselect(term->cmdfd+1, &rfd, &wfd, NULL, NULL, NULL) < 0) {
-			if (errno == EINTR)
-				continue;
-			die("select failed: %s\n", strerror(errno));
-		}
-		if (FD_ISSET(term->cmdfd, &wfd)) {
-			/*
-			 * Only write the bytes written by ttywrite(term) or the
-			 * default of 256. This seems to be a reasonable value
-			 * for a serial line. Bigger values might clog the I/O.
-			 */
-			if ((r = write(term->cmdfd, s, (n < lim)? n : lim)) < 0)
-				goto write_error;
-			if (r < n) {
-				/*
-				 * We weren't able to write out everything.
-				 * This means the buffer is getting full
-				 * again. Empty it.
-				 */
-				if (n < lim)
-					lim = ttyread(term);
-				n -= r;
-				s += r;
-			} else {
-				/* All bytes have been written. */
-				break;
-			}
-		}
-		if (FD_ISSET(term->cmdfd, &rfd))
-			lim = ttyread(term);
-	}
-	return;
+    /*
+     * Attempt to write immediately.
+     *
+     * Only write the bytes written by ttywrite(term) or the
+     * default of 256. This seems to be a reasonable value
+     * for a serial line. Bigger values might clog the I/O.
+     */
+    r = write_buf(term, s, n);
+    if (r < 0) {
+        return;
+    }
 
-write_error:
-	die("write error on tty: %s\n", strerror(errno));
+    if (r < n) {
+        /* We weren't able to write out everything, buffer the rest */
+        vec_pusharr(&term->wbuf, s + r, n - r);
+    }
 }
 
 void
@@ -1491,7 +1526,6 @@ csihandle(Term *term)
 	unknown:
 		fprintf(stderr, "erresc: unknown csi ");
 		csidump(term);
-		/* die(""); */
 		break;
 	case '@': /* ICH -- Insert <n> blank char */
 		DEFAULT(term->csiescseq.arg[0], 1);

@@ -9,13 +9,12 @@
 #include "BearLibTerminal.h"
 //#include "tersh.h"
 #include "lineedit.h"
-#include "vterm.h"
 #include "vec.h"
-#include "process.h"
+#include "poller.h"
 #include "widget.h"
 #include "st.h"
 
-#define curs_blink 500
+#define FRAME_TIME 30
 
 static void print_w(widget_t *w) {
     printf("widget %d (%d, %d, %d, %d) minw=%d minh=%d\n",
@@ -145,11 +144,6 @@ int main(int argc, char* argv[]) {
         dirpath
     );
 
-    process_mgr_t process_mgr = (process_mgr_t){
-        .data_cb = vterm_process_data_cb,
-        .event_cb = vterm_process_event_cb,
-    };
-
     widget_t *root_w = widget_new((widget_t){
         .anchor = ANCHOR_BOTTOM,
         .min_width = terminal_state(TK_WIDTH),
@@ -201,11 +195,20 @@ int main(int argc, char* argv[]) {
 
     while (1) {
         if (!terminal_has_input()) {
+            // Set an alarm to ensure any blocking i/o eventually
+            // gives time back here to the event loop. We use a
+            // multiple of the typical "frame" time to gracefully
+            // accomodate slow connections
+            signal(SIGALRM, SIG_IGN);
+            ualarm(FRAME_TIME * 5 * 1000, 0);
+
             do {
-                process_poll(&process_mgr, 30 - dt);
+                poller_poll(FRAME_TIME - dt);
                 now = time_millis();
                 dt = now - last_time;
-            } while (!terminal_has_input() && dt < 30);
+            } while (!terminal_has_input() && dt < FRAME_TIME);
+
+            ualarm(0, 0);
             widget_update(root_w, dt);
             last_time = now;
             dt = 0;
@@ -231,14 +234,12 @@ int main(int argc, char* argv[]) {
 
         if (lineedit_state(line_ed_w) == lineedit_confirmed) {
             vec_str_t child_argv = NULL_VEC;
-            process_t *child;
 
             char *cmd = parse_cmd(&le.buf, &child_argv);
             lineedit_clear(line_ed_w);
             if (cmd == NULL) break;
             if (*cmd) {
                 ttynew(&term, NULL, cmd, "-", child_argv.data);
-                ttyread(&term);
                 /*
                 widget_t *vterm_w = widget_new((widget_t){
                     .cls = &vterm_widget,

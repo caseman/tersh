@@ -24,8 +24,7 @@ add_executable(tersh
     src/vec.c
     src/smalloc.c
     src/lineedit.c
-    src/vterm.c
-    src/process.c
+    src/poller.c
     src/widget.c
     src/st.c
     src/st_widget.c

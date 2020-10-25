@@ -6,6 +6,7 @@
 
 #include <stdint.h>
 #include <sys/types.h>
+#include "vec.h"
 
 /* Arbitrary sizes */
 #define UTF_INVALID   0xFFFD
@@ -202,6 +203,9 @@ typedef struct {
     int iofd;
     int cmdfd;
     pid_t pid;
+    int exitst; /* child proc exit status */
+    vec_char_t wbuf; /* write buffer */
+    int wbuf_offs; /* offset into write buffer */
 } Term;
 
 void die(const char *, ...);
@@ -219,7 +223,7 @@ void tresize(Term *term, int, int);
 void tsetdirtattr(Term *term, int);
 void ttyhangup(Term *term);
 int ttynew(Term *term, char *, char *, char *, char **);
-size_t ttyread(Term *term);
+size_t term_read(Term *term);
 void ttyresize(Term *term, int, int);
 void ttywrite(Term *term, const char *, size_t, int);
 
