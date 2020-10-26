@@ -9,7 +9,7 @@ struct pollee {
     pid_t pid;
     void *data;
     poller_cb cb;
-    int exit_status;
+    int exited;
 };
 
 vec_t(struct pollee) pollees = NULL_VEC;
@@ -23,7 +23,7 @@ int poller_add(int fd, pid_t pid, void* data, poller_cb cb) {
 
 void *poller_getfg() {
     for (int i = pollees.length - 1; i >= 0; i--) {
-        if (!pollees.data[i].exit_status) {
+        if (!pollees.data[i].exited && pollees.data[i].fd >= 0) {
             return pollees.data[i].data;
         }
     }
@@ -43,7 +43,7 @@ int poller_poll(int timeout) {
             p = pollees.data;
             for (i = 0; i < pollees.length; i++, p++) {
                 if (pid == p->pid) {
-                    p->exit_status = status;
+                    p->exited = 1;
                     p->cb(p->fd, p->data, POLLER_CHILD_EXIT, status);
                     break;
                 }
@@ -60,7 +60,7 @@ int poller_poll(int timeout) {
 
     // Prune closed fds with dead pids
     for (i = pollees.length - 1; i >= 0; i--) {
-        if (pollees.data[i].fd < 0 && pollees.data[i].exit_status) {
+        if (pollees.data[i].fd < 0 && pollees.data[i].exited) {
             vec_del(&pollees, i);
         }
     }
