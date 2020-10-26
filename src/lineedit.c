@@ -54,6 +54,10 @@ int lineedit_handle_ev(widget_t *w, int event) {
             le->state = lineedit_changed;
             break;
         default:
+            if (event == TK_D && terminal_state(TK_CONTROL)) {
+                le->state = lineedit_cancelled;
+                return 1;
+            }
             if (terminal_check(TK_WCHAR)) {
                 lineedit_insert(w, terminal_state(TK_WCHAR));
                 le->state = lineedit_changed;
@@ -115,7 +119,6 @@ void lineedit_draw(widget_t *w) {
 lineedit_state_e lineedit_state(widget_t *w) {
     lineedit_t *le = widget_data(w, &lineedit_widget);
     lineedit_state_e state = le->state;
-    le->state = lineedit_unchanged;
     return state;
 }
 

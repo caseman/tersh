@@ -605,11 +605,11 @@ on_poll(int fd, void *data, poller_event_t event, int val) {
             t->exitst = val;
             return;
         case POLLER_EVENTS:
-            if (val | POLLIN) {
+            if (val & POLLIN) {
                 r = term_read(t);
                 if (r < 0) return;
             }
-            if ((val | POLLOUT) && t->wbuf.length) {
+            if ((val & POLLOUT) && t->wbuf.length) {
                 int n = t->wbuf.length - t->wbuf_offs;
                 r = write_buf(t, t->wbuf.data + t->wbuf_offs, n);
                 if (r < 0) return;
@@ -620,7 +620,7 @@ on_poll(int fd, void *data, poller_event_t event, int val) {
                     t->wbuf_offs += r;
                 }
             }
-            if ((val | POLLHUP) && !r) {
+            if ((val & POLLHUP) && !r) {
                 if (t->cmdfd != -1) {
                     close(t->cmdfd);
                     t->cmdfd = -1;

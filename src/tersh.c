@@ -193,7 +193,7 @@ int main(int argc, char* argv[]) {
     long long now;
     int dt = 0;
 
-    while (1) {
+    while (lineedit_state(line_ed_w) != lineedit_cancelled) {
         if (!terminal_has_input()) {
             // Set an alarm to ensure any blocking i/o eventually
             // gives time back here to the event loop. We use a
@@ -216,7 +216,7 @@ int main(int argc, char* argv[]) {
 
         if (terminal_has_input()) {
             int key = terminal_read();
-            if (key == TK_ESCAPE || key == TK_CLOSE) {
+            if (key == TK_CLOSE) {
                 break;
             }
             if (key == TK_RESIZED) {
@@ -229,7 +229,26 @@ int main(int argc, char* argv[]) {
                 terminal_refresh();
                 continue;
             }
-            line_ed_w->cls->handle_ev(line_ed_w, key);
+            Term *term = poller_getfg();
+            if (term) {
+                char ch;
+                switch (key) {
+                    case TK_RETURN:
+                        ch = '\n';
+                        break;
+                    case TK_BACKSPACE:
+                        ch = '\b';
+                        break;
+                    case TK_ESCAPE:
+                        ch = '\e';
+                        break;
+                    default:
+                        ch = terminal_state(TK_CHAR);
+                }
+                ttywrite(term, &ch, 1, 1);
+            } else {
+                line_ed_w->cls->handle_ev(line_ed_w, key);
+            }
         }
 
         if (lineedit_state(line_ed_w) == lineedit_confirmed) {
