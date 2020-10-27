@@ -36,7 +36,6 @@
 #endif
 
 /* macros */
-#define IS_SET(flag)		((term->mode & (flag)) != 0)
 #define ISCONTROLC0(c)		(BETWEEN(c, 0, 0x1f) || (c) == 0x7f)
 #define ISCONTROLC1(c)		(BETWEEN(c, 0x80, 0x9f))
 #define ISCONTROL(c)		(ISCONTROLC0(c) || ISCONTROLC1(c))
@@ -2504,7 +2503,7 @@ tdraw(Term *term)
 		cx--;
 
 	drawregion(term, 0, 0, term->col, term->row);
-	xdrawcursor(cx, term->c.y, term->line[term->c.y][cx],
+	xdrawcursor(term, cx, term->c.y, term->line[term->c.y][cx],
 			term->ocx, term->ocy, term->line[term->ocy][term->ocx]);
 	term->ocx = cx;
 	term->ocy = term->c.y;

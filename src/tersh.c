@@ -258,7 +258,7 @@ int main(int argc, char* argv[]) {
             lineedit_clear(line_ed_w);
             if (cmd == NULL) break;
             if (*cmd) {
-                ttynew(&term, NULL, cmd, "-", child_argv.data);
+                ttynew(&term, NULL, cmd, "/tmp/term.out", child_argv.data);
                 /*
                 widget_t *vterm_w = widget_new((widget_t){
                     .cls = &vterm_widget,

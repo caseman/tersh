@@ -8,6 +8,9 @@
 #include <sys/types.h>
 #include "vec.h"
 
+#ifndef ST_H
+#define ST_H
+
 /* Arbitrary sizes */
 #define UTF_INVALID   0xFFFD
 #define UTF_SIZ       4
@@ -32,6 +35,7 @@
 
 #define TRUECOLOR(r,g,b)	(0xff000000 | (r) << 16 | (g) << 8 | (b))
 #define IS_TRUECOL(x)		(1 << 24 & (x))
+#define IS_SET(flag)		((term->mode & (flag)) != 0)
 
 enum glyph_attribute {
 	ATTR_NULL       = 0,
@@ -254,3 +258,5 @@ extern char *termname;
 extern unsigned int tabspaces;
 extern unsigned int defaultfg;
 extern unsigned int defaultbg;
+
+#endif

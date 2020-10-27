@@ -3,6 +3,7 @@
  * forked from st: git://git.suckless.org/st
  * License: MIT/X https://git.suckless.org/st/file/LICENSE.html
  */
+#include "st.h"
 
 enum win_mode {
 	MODE_VISIBLE     = 1 << 0,
@@ -29,7 +30,7 @@ enum win_mode {
 
 void xbell(void);
 void xclipcopy(void);
-void xdrawcursor(int, int, Glyph, int, int, Glyph);
+void xdrawcursor(Term *, int, int, Glyph, int, int, Glyph);
 void xdrawline(Line, int, int, int);
 void xfinishdraw(void);
 void xloadcols(void);
