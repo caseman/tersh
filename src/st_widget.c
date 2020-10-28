@@ -89,7 +89,7 @@ st_draw(widget_t *w)
         term->ocx--;
     if (term->line[term->c.y][cx].mode & ATTR_WDUMMY)
         cx--;
-  
+
     int moved = term->lastx != w->left || term->lasty != w->top;
     int y = w->top + w->height - 1;
     for (int row = MIN(term->nlines-1, term->row-1); row >= 0 && y >= w->top; row--, y--) {

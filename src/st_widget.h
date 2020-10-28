@@ -1,4 +1,4 @@
-/* 
+/*
  * st: Simple Terminal
  * forked from st: git://git.suckless.org/st
  * License: MIT/X https://git.suckless.org/st/file/LICENSE.html
