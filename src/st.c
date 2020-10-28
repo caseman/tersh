@@ -797,6 +797,7 @@ write_buf(Term *term, const char *s, size_t n)
     ssize_t r;
     size_t sn = n;
     const size_t lim = 256;
+    if (term->cmdfd < 0) return -1;
     while (n > 0) {
         r = write(term->cmdfd, s, (n < lim)? n : lim);
 
