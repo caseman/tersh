@@ -115,7 +115,7 @@ enum term_mode {
     MODE_8BIT        = 1 << 17,
     MODE_BLINK       = 1 << 18,
     MODE_FBLINK      = 1 << 19,
-    MODE_FOCUS       = 1 << 20,
+    MODE_TTYFOCUS    = 1 << 20,
     MODE_MOUSEX10    = 1 << 21,
     MODE_MOUSEMANY   = 1 << 22,
     MODE_BRCKTPASTE  = 1 << 23,

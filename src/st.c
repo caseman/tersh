@@ -797,7 +797,6 @@ write_buf(Term *term, const char *s, size_t n)
     ssize_t r;
     size_t sn = n;
     const size_t lim = 256;
-    if (term->cmdfd < 0) return -1;
     while (n > 0) {
         r = write(term->cmdfd, s, (n < lim)? n : lim);
 
@@ -1441,7 +1440,7 @@ tsetmode(Term *term, int priv, int set, int *args, int narg)
                 MODBIT(term->mode, set, MODE_MOUSEMANY);
                 break;
             case 1004: /* 1004: send focus events to tty */
-                MODBIT(term->mode, set, MODE_FOCUS);
+                MODBIT(term->mode, set, MODE_TTYFOCUS);
                 break;
             case 1006: /* 1006: extended reporting mode */
                 MODBIT(term->mode, set, MODE_MOUSESGR);
@@ -2471,5 +2470,12 @@ resettitle(Term *term)
 
 void st_set_focused(Term *term, int set) {
     MODBIT(term->mode, set, MODE_FOCUSED);
+    if (IS_SET(MODE_TTYFOCUS)) {
+        if (set) {
+            ttywrite(term, "\033[I", 3, 0);
+        } else {
+            ttywrite(term, "\033[O", 3, 0);
+        }
+    }
 }
 
