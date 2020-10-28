@@ -102,6 +102,26 @@ enum term_mode {
 	MODE_ECHO        = 1 << 4,
 	MODE_PRINT       = 1 << 5,
 	MODE_UTF8        = 1 << 6,
+	MODE_VISIBLE     = 1 << 7,
+	MODE_FOCUSED     = 1 << 8,
+	MODE_APPKEYPAD   = 1 << 9,
+	MODE_MOUSEBTN    = 1 << 10,
+	MODE_MOUSEMOTION = 1 << 11,
+	MODE_REVERSE     = 1 << 12,
+	MODE_KBDLOCK     = 1 << 13,
+	MODE_HIDE        = 1 << 14,
+	MODE_APPCURSOR   = 1 << 15,
+	MODE_MOUSESGR    = 1 << 16,
+	MODE_8BIT        = 1 << 17,
+	MODE_BLINK       = 1 << 18,
+	MODE_FBLINK      = 1 << 19,
+	MODE_FOCUS       = 1 << 20,
+	MODE_MOUSEX10    = 1 << 21,
+	MODE_MOUSEMANY   = 1 << 22,
+	MODE_BRCKTPASTE  = 1 << 23,
+	MODE_NUMLOCK     = 1 << 24,
+	MODE_MOUSE       = MODE_MOUSEBTN|MODE_MOUSEMOTION|MODE_MOUSEX10\
+	                  |MODE_MOUSEMANY,
 };
 
 enum cursor_movement {
@@ -186,6 +206,8 @@ typedef struct {
 typedef struct {
 	int row;      /* nb row */
 	int col;      /* nb col */
+    int nlines;   /* number of lines used */
+    int lastx, lasty;
 	Line *line;   /* screen */
 	Line *alt;    /* alternate screen */
 	int *dirty;   /* dirtyness of lines */
@@ -230,6 +252,7 @@ int ttynew(Term *term, char *, char *, char *, char **);
 size_t term_read(Term *term);
 void ttyresize(Term *term, int, int);
 void ttywrite(Term *term, const char *, size_t, int);
+void st_set_focused(Term *term, int);
 
 void resettitle(Term *term);
 

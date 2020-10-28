@@ -12,6 +12,7 @@
 #include "vec.h"
 #include "poller.h"
 #include "widget.h"
+#include "st_widget.h"
 #include "st.h"
 
 #define FRAME_TIME 30
@@ -144,6 +145,8 @@ int main(int argc, char* argv[]) {
         dirpath
     );
 
+    int term_order = 0;
+
     widget_t *root_w = widget_new((widget_t){
         .anchor = ANCHOR_BOTTOM,
         .min_width = terminal_state(TK_WIDTH),
@@ -168,8 +171,7 @@ int main(int argc, char* argv[]) {
         .data = &le,
     });
 
-    /*
-    widget_t *vterm_container = widget_new((widget_t){
+    widget_t *term_container = widget_new((widget_t){
         .parent = root_w,
         .anchor = ANCHOR_BOTTOM,
         .order = 1,
@@ -178,20 +180,17 @@ int main(int argc, char* argv[]) {
         .min_width = 10,
         .max_width = -1,
     });
-    */
-
-    Term term;
-    tnew(&term, terminal_state(TK_WIDTH), terminal_state(TK_HEIGHT) - 2);
 
     widget_layout(root_w, 0, 0, terminal_state(TK_WIDTH), terminal_state(TK_HEIGHT));
     widget_draw(root_w);
-    tdraw(&term);
     terminal_refresh();
 
 
     long long last_time = time_millis();
     long long now;
     int dt = 0;
+    Term *last_term = NULL;
+    Term *fg_term;
 
     while (lineedit_state(line_ed_w) != lineedit_cancelled) {
         if (!terminal_has_input()) {
@@ -214,6 +213,13 @@ int main(int argc, char* argv[]) {
             dt = 0;
         }
 
+        Term *fg_term = poller_getfg();
+        if (fg_term != last_term) {
+            if (last_term) st_set_focused(last_term, 0);
+            if (fg_term) st_set_focused(fg_term, 1);
+            last_term = fg_term;
+        }
+
         if (terminal_has_input()) {
             int key = terminal_read();
             if (key == TK_CLOSE) {
@@ -229,8 +235,7 @@ int main(int argc, char* argv[]) {
                 terminal_refresh();
                 continue;
             }
-            Term *term = poller_getfg();
-            if (term) {
+            if (fg_term) {
                 char ch;
                 switch (key) {
                     case TK_RETURN:
@@ -245,7 +250,7 @@ int main(int argc, char* argv[]) {
                     default:
                         ch = terminal_state(TK_CHAR);
                 }
-                ttywrite(term, &ch, 1, 1);
+                ttywrite(fg_term, &ch, 1, 1);
             } else {
                 line_ed_w->cls->handle_ev(line_ed_w, key);
             }
@@ -258,34 +263,26 @@ int main(int argc, char* argv[]) {
             lineedit_clear(line_ed_w);
             if (cmd == NULL) break;
             if (*cmd) {
-                ttynew(&term, NULL, cmd, "/tmp/term.out", child_argv.data);
-                /*
-                widget_t *vterm_w = widget_new((widget_t){
-                    .cls = &vterm_widget,
-                    .parent = vterm_container,
+                Term *term = calloc(1, sizeof(Term));
+                tnew(term, term_container->width, terminal_state(TK_HEIGHT));
+                ttynew(term, NULL, cmd, "/tmp/term.out", child_argv.data);
+                widget_new((widget_t){
+                    .cls = &st_widget,
+                    .data = term,
+                    .parent = term_container,
                     .anchor = ANCHOR_BOTTOM,
-                    .order = -process_mgr.processes.length,
+                    .order = --term_order,
                     .min_height = 1,
                     .max_height = 1,
                     .min_width = 10,
                     .max_width = -1,
                 });
-                child = process_spawn(&process_mgr, vterm_w, cmd, child_argv.data);
-                if (child == NULL) {
-                    char *err_str = strerror(errno);
-                    vterm_write(vterm_w, "ERROR: ", 7);
-                    vterm_write(vterm_w, err_str, strlen(err_str));
-                    vterm_write(vterm_w, "\n", 1);
-                    continue;
-                }
-                */
             }
             free(cmd);
         }
 
         widget_relayout(root_w);
         widget_draw(root_w);
-        tdraw(&term);
         terminal_refresh();
     }
 

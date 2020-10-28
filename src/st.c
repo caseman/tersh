@@ -24,7 +24,7 @@
 
 #include "st.h"
 #include "st_config.h"
-#include "win.h"
+#include "st_widget.h"
 #include "poller.h"
 
 #if   defined(__linux)
@@ -82,15 +82,12 @@ static void tsetscroll(Term *, int, int);
 static void tswapscreen(Term *);
 static void tsetmode(Term *, int, int, int *, int);
 static int twrite(Term *, const char *, int, int);
-static void tfulldirt(Term *);
 static void tcontrolcode(Term *, uchar );
 static void tdectest(Term *, char );
 static void tdefutf8(Term *, char);
 static int32_t tdefcolor(Term *, int *, int *, int);
 static void tdeftran(Term *, char);
 static void tstrsequence(Term *, uchar);
-
-static void drawregion(Term *, int, int, int, int);
 
 static void selnormalize(Term *);
 static void selscroll(Term *, int, int);
@@ -1137,6 +1134,9 @@ tsetchar(Term *term, Rune u, Glyph *attr, int x, int y)
 	term->dirty[y] = 1;
 	term->line[y][x] = *attr;
 	term->line[y][x].u = u;
+    if (y >= term->nlines) {
+        term->nlines = y + 1;
+    }
 }
 
 void
@@ -1394,10 +1394,10 @@ tsetmode(Term *term, int priv, int set, int *args, int narg)
 		if (priv) {
 			switch (*args) {
 			case 1: /* DECCKM -- Cursor key */
-				xsetmode(set, MODE_APPCURSOR);
+				MODBIT(term->mode, set, MODE_APPCURSOR);
 				break;
 			case 5: /* DECSCNM -- Reverse video */
-				xsetmode(set, MODE_REVERSE);
+				MODBIT(term->mode, set, MODE_REVERSE);
 				break;
 			case 6: /* DECOM -- Origin */
 				MODBIT(term->c.state, set, CURSOR_ORIGIN);
@@ -1417,36 +1417,36 @@ tsetmode(Term *term, int priv, int set, int *args, int narg)
 			case 12: /* att610 -- Start blinking cursor (IGNORED) */
 				break;
 			case 25: /* DECTCEM -- Text Cursor Enable Mode */
-				xsetmode(!set, MODE_HIDE);
+				MODBIT(term->mode, !set, MODE_HIDE);
 				break;
 			case 9:    /* X10 mouse compatibility mode */
 				xsetpointermotion(0);
-				xsetmode(0, MODE_MOUSE);
-				xsetmode(set, MODE_MOUSEX10);
+				MODBIT(term->mode, 0, MODE_MOUSE);
+				MODBIT(term->mode, set, MODE_MOUSEX10);
 				break;
 			case 1000: /* 1000: report button press */
 				xsetpointermotion(0);
-				xsetmode(0, MODE_MOUSE);
-				xsetmode(set, MODE_MOUSEBTN);
+				MODBIT(term->mode, 0, MODE_MOUSE);
+				MODBIT(term->mode, set, MODE_MOUSEBTN);
 				break;
 			case 1002: /* 1002: report motion on button press */
 				xsetpointermotion(0);
-				xsetmode(0, MODE_MOUSE);
-				xsetmode(set, MODE_MOUSEMOTION);
+				MODBIT(term->mode, 0, MODE_MOUSE);
+				MODBIT(term->mode, set, MODE_MOUSEMOTION);
 				break;
 			case 1003: /* 1003: enable all mouse motions */
 				xsetpointermotion(set);
-				xsetmode(0, MODE_MOUSE);
-				xsetmode(set, MODE_MOUSEMANY);
+				MODBIT(term->mode, 0, MODE_MOUSE);
+				MODBIT(term->mode, set, MODE_MOUSEMANY);
 				break;
 			case 1004: /* 1004: send focus events to tty */
-				xsetmode(set, MODE_FOCUS);
+				MODBIT(term->mode, set, MODE_FOCUS);
 				break;
 			case 1006: /* 1006: extended reporting mode */
-				xsetmode(set, MODE_MOUSESGR);
+				MODBIT(term->mode, set, MODE_MOUSESGR);
 				break;
 			case 1034:
-				xsetmode(set, MODE_8BIT);
+				MODBIT(term->mode, set, MODE_8BIT);
 				break;
 			case 1049: /* swap screen & set/restore cursor as xterm */
 				if (!allowaltscreen)
@@ -1470,7 +1470,7 @@ tsetmode(Term *term, int priv, int set, int *args, int narg)
 				tcursor(term, (set) ? CURSOR_SAVE : CURSOR_LOAD);
 				break;
 			case 2004: /* 2004: bracketed paste mode */
-				xsetmode(set, MODE_BRCKTPASTE);
+				MODBIT(term->mode, set, MODE_BRCKTPASTE);
 				break;
 			/* Not implemented mouse modes. See comments there. */
 			case 1001: /* mouse highlight mode; can hang the
@@ -1493,7 +1493,7 @@ tsetmode(Term *term, int priv, int set, int *args, int narg)
 			case 0:  /* Error (IGNORED) */
 				break;
 			case 2:
-				xsetmode(set, MODE_KBDLOCK);
+				MODBIT(term->mode, set, MODE_KBDLOCK);
 				break;
 			case 4:  /* IRM -- Insertion-replacement */
 				MODBIT(term->mode, set, MODE_INSERT);
@@ -1805,11 +1805,7 @@ strhandle(Term *term)
 				fprintf(stderr, "erresc: invalid color j=%d, p=%s\n",
 				        j, p ? p : "(null)");
 			} else {
-				/*
-				 * TODO if defaultbg color is changed, borders
-				 * are dirty
-				 */
-				redraw(term);
+                tfulldirt(term);
 			}
 			return;
 		}
@@ -2191,10 +2187,10 @@ eschandle(Term *term, uchar ascii)
 		xloadcols();
 		break;
 	case '=': /* DECPAM -- Application keypad */
-		xsetmode(1, MODE_APPKEYPAD);
+		MODBIT(term->mode, 1, MODE_APPKEYPAD);
 		break;
 	case '>': /* DECPNM -- Normal keypad */
-		xsetmode(0, MODE_APPKEYPAD);
+		MODBIT(term->mode, 0, MODE_APPKEYPAD);
 		break;
 	case '7': /* DECSC -- Save Cursor */
 		tcursor(term, CURSOR_SAVE);
@@ -2472,49 +2468,7 @@ resettitle(Term *term)
 	xsettitle(NULL);
 }
 
-void
-drawregion(Term *term, int x1, int y1, int x2, int y2)
-{
-	int y;
-
-	for (y = y1; y < y2; y++) {
-		if (!term->dirty[y])
-			continue;
-
-		term->dirty[y] = 0;
-		xdrawline(term->line[y], x1, y, x2);
-	}
+void st_set_focused(Term *term, int set) {
+    MODBIT(term->mode, set, MODE_FOCUSED);
 }
 
-void
-tdraw(Term *term)
-{
-	int cx = term->c.x, ocx = term->ocx, ocy = term->ocy;
-
-	if (!xstartdraw())
-		return;
-
-	/* adjust cursor position */
-	LIMIT(term->ocx, 0, term->col-1);
-	LIMIT(term->ocy, 0, term->row-1);
-	if (term->line[term->ocy][term->ocx].mode & ATTR_WDUMMY)
-		term->ocx--;
-	if (term->line[term->c.y][cx].mode & ATTR_WDUMMY)
-		cx--;
-
-	drawregion(term, 0, 0, term->col, term->row);
-	xdrawcursor(term, cx, term->c.y, term->line[term->c.y][cx],
-			term->ocx, term->ocy, term->line[term->ocy][term->ocx]);
-	term->ocx = cx;
-	term->ocy = term->c.y;
-	xfinishdraw();
-	if (ocx != term->ocx || ocy != term->ocy)
-		xximspot(term->ocx, term->ocy);
-}
-
-void
-redraw(Term *term)
-{
-	tfulldirt(term);
-	tdraw(term);
-}

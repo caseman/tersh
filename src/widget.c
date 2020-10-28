@@ -215,6 +215,7 @@ void widget_draw(widget_t *w) {
     } else {
         terminal_bkcolor(0xff444444);
     }
+    //terminal_crop(w->left, w->top, w->width, w->height);
     /* Note this leaves it up to the widget drawing routines to clear
      * the widget rect if it is needed */
     if (w->cls->draw) w->cls->draw(w);
