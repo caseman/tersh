@@ -156,7 +156,7 @@ int main(int argc, char* argv[]) {
     });
 
     lineedit_t le = (lineedit_t){
-        .blink_time = 500,
+        .blink_time = 700,
     };
 
     widget_t *line_ed_w = widget_new((widget_t){

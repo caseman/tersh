@@ -232,6 +232,7 @@ typedef struct {
     int exitst; /* child proc exit status */
     vec_char_t wbuf; /* write buffer */
     int wbuf_offs; /* offset into write buffer */
+    int blinkelapsed;
 } Term;
 
 void die(const char *, ...);
@@ -281,5 +282,6 @@ extern char *termname;
 extern unsigned int tabspaces;
 extern unsigned int defaultfg;
 extern unsigned int defaultbg;
+extern unsigned int blinktimeout;
 
 #endif

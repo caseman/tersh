@@ -13,7 +13,7 @@ void draw_cursor(Term *term, int cx, int cy, Glyph g, int ox, int oy, Glyph og) 
     /* remove old cursor */
     terminal_put(ox, oy, 0);
 
-    if (IS_SET(MODE_HIDE) || !IS_SET(MODE_FOCUSED)) {
+    if (IS_SET(MODE_HIDE) || IS_SET(MODE_BLINK) || !IS_SET(MODE_FOCUSED)) {
         terminal_layer(0);
         return;
     }
@@ -59,6 +59,17 @@ int xstartdraw(void) {
     return 1;
 }
 void xximspot(int x, int y) {}
+
+void st_update(widget_t *w, unsigned int dt) {
+    Term *term = widget_data(w, &st_widget);
+    if (!IS_SET(MODE_FOCUSED) || !blinktimeout) return;
+    term->blinkelapsed += dt;
+    if (term->blinkelapsed >= blinktimeout) {
+        term->blinkelapsed -= blinktimeout;
+        term->mode ^= MODE_BLINK;
+        w->flags |= WIDGET_NEEDS_REDRAW;
+    }
+}
 
 void st_layout(widget_t *w) {
     Term *term = widget_data(w, &st_widget);
@@ -114,6 +125,7 @@ widget_cls st_widget = {
     // .handle_ev = st_handle_ev,
     .draw = st_draw,
     .layout = st_layout,
+    .update = st_update,
     // .init = st_init,
     // .del = st_del,
 };
