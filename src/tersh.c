@@ -202,7 +202,9 @@ int main(int argc, char* argv[]) {
             ualarm(FRAME_TIME * 5 * 1000, 0);
 
             do {
-                poller_poll(FRAME_TIME - dt);
+                if (poller_poll(FRAME_TIME - dt) > 0 && !terminal_has_input()) {
+                    terminal_delay(FRAME_TIME - dt);
+                }
                 now = time_millis();
                 dt = now - last_time;
             } while (!terminal_has_input() && dt < FRAME_TIME);
