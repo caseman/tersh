@@ -729,6 +729,7 @@ ttynew(Term *term, char *line, char *cmd, char *out, char **args)
 #endif
         close(s);
         term->cmdfd = m;
+        ttyresize(term, term->col, term->row);
         poller_add(m, term->pid, term, on_poll);
         break;
     }
@@ -800,6 +801,17 @@ write_buf(Term *term, const char *s, size_t n)
     if (term->cmdfd < 0) return -1;
     while (n > 0) {
         r = write(term->cmdfd, s, (n < lim)? n : lim);
+
+        /*
+        const char *c = s;
+        for (int i = r; i > 0; i--, c++) {
+            if (*c < 32) 
+                printf("0x%02x", *c);
+            else
+                printf("%c", *c);
+        }
+        printf("\n");
+        */
 
         if (r < 0) {
             if (errno == EINTR || errno == EAGAIN || errno == EWOULDBLOCK) break;
