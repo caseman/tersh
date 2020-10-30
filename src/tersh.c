@@ -133,6 +133,12 @@ long long time_millis(void)
     return msec;
 }
 
+int alarm_time = 0;
+
+void handle_sigalrm() {
+    alarm_time = time_millis();
+}
+
 int main(int argc, char* argv[]) {
     char *path = strdup(argv[0]);
     char *dirpath = dirname(path);
@@ -193,23 +199,25 @@ int main(int argc, char* argv[]) {
     Term *fg_term;
 
     while (lineedit_state(line_ed_w) != lineedit_cancelled) {
-        if (!terminal_has_input()) {
-            // Set an alarm to ensure any blocking i/o eventually
-            // gives time back here to the event loop. We use a
-            // multiple of the typical "frame" time to gracefully
-            // accomodate slow connections
-            signal(SIGALRM, SIG_IGN);
-            ualarm(FRAME_TIME * 5 * 1000, 0);
+        // Set an alarm to ensure any blocking i/o eventually
+        // gives time back here to the event loop. We use a
+        // multiple of the typical "frame" time to gracefully
+        // accomodate slow connections
+        signal(SIGALRM, handle_sigalrm);
+        ualarm(0, 0);
+        ualarm(FRAME_TIME * 5 * 1000, 0);
 
+        if (!terminal_has_input()) {
             do {
                 if (poller_poll(FRAME_TIME - dt) > 0 && !terminal_has_input()) {
+                    ualarm(0, 0);
                     terminal_delay(FRAME_TIME - dt);
+                    ualarm(FRAME_TIME * 5 * 1000, 0);
                 }
                 now = time_millis();
                 dt = now - last_time;
             } while (!terminal_has_input() && dt < FRAME_TIME);
 
-            ualarm(0, 0);
             widget_update(root_w, dt);
             last_time = now;
             dt = 0;
