@@ -13,7 +13,7 @@ void draw_cursor(Term *term, int cx, int cy, Glyph g, int ox, int oy, Glyph og) 
     /* remove old cursor */
     terminal_put(ox, oy, 0);
 
-    if (IS_SET(MODE_HIDE) || IS_SET(MODE_BLINK) || !IS_SET(MODE_FOCUSED)) {
+    if (IS_SET(MODE_HIDE) || IS_SET(MODE_BLINK) || !IS_SET(MODE_FOCUSED) || cy >= term->nlines) {
         terminal_layer(0);
         return;
     }
