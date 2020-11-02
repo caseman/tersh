@@ -69,7 +69,7 @@ The Tersh UI consists of a hierarchy of widgets nested as follows
 |
 +----------------------------------------------------- ・・・
 
-* These are strictly container widgets and aren't visible themselves
+(* These are strictly container widgets and aren't visible themselves)
 
 Some of these widgets are further composed of other smaller widgets. Widgets
 are designed to be lightweight so they can be used liberally to help automate

@@ -146,9 +146,10 @@ static unsigned int defaultrcs = 0xff00ffff;
  * 2: Block ("█")
  * 4: Underline ("_")
  * 6: Bar ("|")
- * 7: Snowman ("☃")
+ * 7: Custom ("☃")
  */
 static unsigned int cursorshape = 2;
+int customcursor = 0x2603; /* ☃ */
 
 /*
  * Default columns and rows numbers

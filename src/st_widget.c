@@ -9,17 +9,56 @@ void xbell(void) {}
 void xclipcopy(void) {}
 
 void draw_cursor(Term *term, int cx, int cy, Glyph g, int ox, int oy, Glyph og) {
-    terminal_layer(1);
-    /* remove old cursor */
-    terminal_put(ox, oy, 0);
+    int u, offx, offy;
 
-    if (IS_SET(MODE_HIDE) || IS_SET(MODE_BLINK) || !IS_SET(MODE_FOCUSED) || cy >= term->nlines) {
+    /* remove old cursor */
+    if (term->cursorshape > 2) {
+        terminal_layer(1);
+        terminal_put(ox, oy, 0);
+    } else {
+        terminal_put(ox, oy, og.u);
+    }
+
+    if (IS_SET(MODE_HIDE) || IS_SET(MODE_BLINK) || !IS_SET(MODE_FOCUSED)) {
         terminal_layer(0);
         return;
     }
 
     // TODO handle selection and colors
-    terminal_put(cx, cy, '|');
+
+    if (term->cursorshape <= 2) {
+        /* block cursor */
+        u = g.u;
+        if (u < 0x20) {
+            u = 0x20;
+        }
+        terminal_color(0xff000000);
+        terminal_bkcolor(0xffffffff);
+        terminal_put(cx, cy, u);
+        return;
+    }
+
+    switch (term->cursorshape) {
+        case 3:
+        case 4:
+            /* underline cursor */
+            u = '_';
+            offx = offy = 0;
+            break;
+        case 5:
+        case 6:
+            /* bar cursor */
+            u = '|';
+            offx = 1 - terminal_state(TK_CELL_WIDTH) / 2;
+            offy = -2;
+            break;
+        default:
+            u = customcursor;
+            offx = offy = 0;
+    }
+
+    terminal_color(0xffffffff);
+    terminal_put_ext(cx, cy, offx, offy, u, NULL);
     terminal_layer(0);
 }
 
@@ -50,9 +89,6 @@ int xsetcolorname(int x, const char *name) {
 }
 void xseticontitle(char *p) {}
 void xsettitle(char *p) {}
-int xsetcursor(int cursor) {
-    return 0;
-}
 void xsetpointermotion(int set) {}
 void xsetsel(char *str) {}
 int xstartdraw(void) {

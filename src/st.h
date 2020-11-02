@@ -232,6 +232,7 @@ typedef struct {
     int exitst; /* child proc exit status */
     vec_char_t wbuf; /* write buffer */
     int wbuf_offs; /* offset into write buffer */
+    int cursorshape;
     int blinkelapsed;
 } Term;
 
@@ -254,6 +255,7 @@ size_t term_read(Term *term);
 void ttyresize(Term *term, int, int);
 void ttywrite(Term *term, const char *, size_t, int);
 void st_set_focused(Term *term, int);
+int st_set_cursor(Term *term, int cursor);
 
 void resettitle(Term *term);
 
@@ -283,5 +285,6 @@ extern unsigned int tabspaces;
 extern unsigned int defaultfg;
 extern unsigned int defaultbg;
 extern unsigned int blinktimeout;
+extern int customcursor;
 
 #endif

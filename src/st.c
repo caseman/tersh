@@ -971,6 +971,7 @@ tnew(Term *term, int col, int row)
     memset(term, 0, sizeof(Term));
     term->c.attr.fg = defaultfg;
     term->c.attr.bg = defaultbg;
+    term->cursorshape = cursorshape;
     tresize(term, col, row);
     treset(term);
 }
@@ -1727,7 +1728,7 @@ csihandle(Term *term)
     case ' ':
         switch (term->csiescseq.mode[1]) {
         case 'q': /* DECSCUSR -- Set Cursor Style */
-            if (xsetcursor(term->csiescseq.arg[0]))
+            if (st_set_cursor(term, term->csiescseq.arg[0]))
                 goto unknown;
             break;
         default:
@@ -2490,5 +2491,11 @@ void st_set_focused(Term *term, int set) {
             ttywrite(term, "\033[O", 3, 0);
         }
     }
+}
+
+int st_set_cursor(Term *term, int cursor) {
+    if (cursor < 0 || cursor > 7) return 1;
+    term->cursorshape = cursor;
+    return 0;
 }
 

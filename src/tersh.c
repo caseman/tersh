@@ -252,7 +252,7 @@ int main(int argc, char* argv[]) {
                         ch = '\n';
                         break;
                     case TK_BACKSPACE:
-                        ch = '\b';
+                        ch = 127;
                         break;
                     case TK_ESCAPE:
                         ch = '\e';
