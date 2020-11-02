@@ -1058,6 +1058,9 @@ tnewline(Term *term, int first_col)
         y++;
     }
     tmoveto(term, first_col ? 0 : term->c.x, y);
+    if (y > term->nlines) {
+        term->nlines = y;
+    }
 }
 
 void

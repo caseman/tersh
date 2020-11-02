@@ -8,60 +8,6 @@
 void xbell(void) {}
 void xclipcopy(void) {}
 
-void draw_cursor(Term *term, int cx, int cy, Glyph g, int ox, int oy, Glyph og) {
-    int u, offx, offy;
-
-    /* remove old cursor */
-    if (term->cursorshape > 2) {
-        terminal_layer(1);
-        terminal_put(ox, oy, 0);
-    } else {
-        terminal_put(ox, oy, og.u);
-    }
-
-    if (IS_SET(MODE_HIDE) || IS_SET(MODE_BLINK) || !IS_SET(MODE_FOCUSED)) {
-        terminal_layer(0);
-        return;
-    }
-
-    // TODO handle selection and colors
-
-    if (term->cursorshape <= 2) {
-        /* block cursor */
-        u = g.u;
-        if (u < 0x20) {
-            u = 0x20;
-        }
-        terminal_color(0xff000000);
-        terminal_bkcolor(0xffffffff);
-        terminal_put(cx, cy, u);
-        return;
-    }
-
-    switch (term->cursorshape) {
-        case 3:
-        case 4:
-            /* underline cursor */
-            u = '_';
-            offx = offy = 0;
-            break;
-        case 5:
-        case 6:
-            /* bar cursor */
-            u = '|';
-            offx = 1 - terminal_state(TK_CELL_WIDTH) / 2;
-            offy = -2;
-            break;
-        default:
-            u = customcursor;
-            offx = offy = 0;
-    }
-
-    terminal_color(0xffffffff);
-    terminal_put_ext(cx, cy, offx, offy, u, NULL);
-    terminal_layer(0);
-}
-
 void draw_line(Line line, int x1, int y1, int x2) {
     Glyph last = (Glyph){};
     Glyph *this = line;
@@ -82,7 +28,6 @@ void draw_line(Line line, int x1, int y1, int x2) {
     }
 }
 
-void xfinishdraw(void) {}
 void xloadcols(void) {}
 int xsetcolorname(int x, const char *name) {
     return 0;
@@ -91,9 +36,6 @@ void xseticontitle(char *p) {}
 void xsettitle(char *p) {}
 void xsetpointermotion(int set) {}
 void xsetsel(char *str) {}
-int xstartdraw(void) {
-    return 1;
-}
 void xximspot(int x, int y) {}
 
 void st_update(widget_t *w, unsigned int dt) {
@@ -116,8 +58,12 @@ void st_layout(widget_t *w) {
         printf("resize!\n");
         tresize(term, w->width, term->row);
     }
+    if (term->c.y >= term->nlines) {
+        /* ensure widget encloses cursor */
+        term->nlines = term->c.y + 1;
+    }
     w->min_height = 1;
-    w->max_height = term->nlines ? term->nlines : 1;
+    w->max_height = term->nlines;
 }
 
 void
@@ -125,9 +71,9 @@ st_draw(widget_t *w)
 {
     Term *term = widget_data(w, &st_widget);
     int cx = term->c.x, ocx = term->ocx, ocy = term->ocy;
-
-    if (!xstartdraw())
-        return;
+    /*
+    if (!IS_SET(MODE_VISIBLE)) return;
+    */
 
     /* adjust cursor position */
     LIMIT(term->ocx, 0, term->col-1);
@@ -145,13 +91,63 @@ st_draw(widget_t *w)
         draw_line(term->line[row], w->left, y, w->left + term->col);
     }
 
-    draw_cursor(term, w->left + cx, w->top + term->c.y, term->line[term->c.y][cx],
-        term->lastx + term->ocx, term->lasty + term->ocy, term->line[term->ocy][term->ocx]);
+    /* draw cursor */
+    int cy = term->c.y < w->height ? w->top + term->c.y : -1;
+    cx += w->left;
+    Glyph cg = term->line[term->c.y][cx];
+    Glyph ocg = term->line[term->ocy][term->ocx];
+    int offx = 0, offy = 0;
+
+    if (!moved) {
+        /* remove old cursor */
+        if (term->cursorshape > 2) {
+            terminal_layer(1);
+            terminal_put(term->lastx + ocx, term->lasty + ocy, 0);
+            terminal_layer(0);
+        } else {
+            terminal_put(term->lastx + ocx, term->lasty + ocy, ocg.u);
+        }
+    }
+
+    if (term->c.y < w->height && !IS_SET(MODE_HIDE) && !IS_SET(MODE_BLINK) && IS_SET(MODE_FOCUSED)) {
+        // TODO handle selection and colors
+
+        if (term->cursorshape <= 2) {
+            /* block cursor */
+            if (cg.u < 0x20) {
+                cg.u = 0x20;
+            }
+            terminal_color(0xff000000);
+            terminal_bkcolor(0xffffffff);
+            terminal_put(cx, cy, cg.u);
+        } else {
+            switch (term->cursorshape) {
+                case 3:
+                case 4:
+                    /* underline cursor */
+                    cg.u = '_';
+                    break;
+                case 5:
+                case 6:
+                    /* bar cursor */
+                    cg.u = '|';
+                    offx = 1 - terminal_state(TK_CELL_WIDTH) / 2;
+                    offy = -2;
+                    break;
+                default:
+                    cg.u = customcursor;
+            }
+
+            terminal_color(0xffffffff);
+            terminal_put_ext(cx, cy, offx, offy, cg.u, NULL);
+            terminal_layer(0);
+        }
+    }
+
     term->ocx = cx;
     term->ocy = term->c.y;
     term->lastx = w->left;
     term->lasty = w->top;
-    xfinishdraw();
     if (ocx != term->ocx || ocy != term->ocy)
         xximspot(term->ocx, term->ocy);
 }
