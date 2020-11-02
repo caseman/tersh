@@ -251,6 +251,9 @@ int main(int argc, char* argv[]) {
                     case TK_RETURN:
                         ch = '\n';
                         break;
+                    case TK_TAB:
+                        ch = '\t';
+                        break;
                     case TK_BACKSPACE:
                         ch = 127;
                         break;
@@ -260,7 +263,9 @@ int main(int argc, char* argv[]) {
                     default:
                         ch = terminal_state(TK_CHAR);
                 }
-                ttywrite(fg_term, &ch, 1, 1);
+                if (ch) {
+                    ttywrite(fg_term, &ch, 1, 1);
+                }
             } else {
                 line_ed_w->cls->handle_ev(line_ed_w, key);
             }
