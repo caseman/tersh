@@ -13,8 +13,12 @@ widget_t *widget_new(widget_t config) {
     memcpy(w, &config, sizeof(widget_t));
     vec_init(&w->children);
     if (w->parent) {
-        w->parent->flags |= CHILD_REORDER;
         vec_push(&w->parent->children, w);
+        if (w->order) {
+            w->parent->flags |= CHILD_REORDER;
+        } else {
+            w->order = w->parent->children.length;
+        }
     }
     if (w->cls == NULL) {
         w->cls = &no_widget_cls;
@@ -83,6 +87,12 @@ static void place_widget(widget_t *w, int left, int top, int right, int bottom) 
             w->top = bottom - w->height;
             break;
     }
+    /*
+    printf("place %s maxw=%d minw=%d w=%d maxh=%d minh=%d h=%d\n",
+        w->cls->name,
+        w->max_width, w->min_width, w->width,
+        w->max_height, w->min_height, w->height);
+    */
     w->flags |= WIDGET_NEEDS_REDRAW;
 }
 
@@ -110,13 +120,6 @@ void widget_layout(widget_t *w, int left, int top, int right, int bottom) {
     if (!w->children.length) {
         w->width = max_width > min_width ? max_width : min_width;
         w->height = max_height > min_height ? max_height : min_height;
-        /*
-        if (w->order < 0)
-            printf("layout %d maxw=%d minw=%d w=%d maxh=%d minh=%d h=%d\n",
-                w->order,
-                w->max_width, w->min_width, w->width,
-                w->max_height, w->min_height, w->height);
-        */
         if (w->cls->layout) w->cls->layout(w);
         place_widget(w, left, top, right, bottom);
         return;
@@ -138,6 +141,12 @@ void widget_layout(widget_t *w, int left, int top, int right, int bottom) {
             break;
     }
 
+    /*
+    printf("layout %s maxw=%d minw=%d w=%d maxh=%d minh=%d h=%d\n",
+        w->cls->name,
+        w->max_width, w->min_width, w->width,
+        w->max_height, w->min_height, w->height);
+    */
     int i;
     int overflow = 0;
     // layout children, expanding until they fit or we exceed a max dimension
@@ -184,7 +193,8 @@ void widget_layout(widget_t *w, int left, int top, int right, int bottom) {
             case ANCHOR_LEFT:
             case ANCHOR_RIGHT:
                 overflow = inner_l - inner_r;
-                w->width += overflow * (overflow > 0);
+                if (overflow <= 0) break;
+                w->width += overflow;
                 if (w->width >= max_width) {
                     w->width = max_width;
                     overflow = 0;
@@ -193,7 +203,8 @@ void widget_layout(widget_t *w, int left, int top, int right, int bottom) {
             case ANCHOR_BOTTOM:
             case ANCHOR_TOP:
                 overflow = inner_t - inner_b;
-                w->height += overflow * (overflow > 0);
+                if (overflow <= 0) break;
+                w->height += overflow;
                 if (w->height >= max_height) {
                     w->height = max_height;
                     overflow = 0;
@@ -210,11 +221,6 @@ void widget_relayout(widget_t *w) {
 }
 
 void widget_draw(widget_t *w) {
-    if (w->order % 2) {
-        terminal_bkcolor(0xff222222);
-    } else {
-        terminal_bkcolor(0xff444444);
-    }
     //terminal_crop(w->left, w->top, w->width, w->height);
     /* Note this leaves it up to the widget drawing routines to clear
      * the widget rect if it is needed */

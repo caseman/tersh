@@ -43,7 +43,9 @@ int poller_poll(int timeout) {
             p = pollees.data;
             for (i = 0; i < pollees.length; i++, p++) {
                 if (pid == p->pid) {
-                    p->exited = 1;
+                    if (WIFEXITED(status) || WIFSIGNALED(status)) {
+                        p->exited = 1;
+                    }
                     p->cb(p->fd, p->data, POLLER_CHILD_EXIT, status);
                     break;
                 }

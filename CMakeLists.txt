@@ -17,6 +17,7 @@ add_library(vtparse STATIC
 )
 
 set(RESOURCE_FILES
+    res/spinner.png
 )
 
 add_executable(tersh
@@ -26,6 +27,7 @@ add_executable(tersh
     src/lineedit.c
     src/poller.c
     src/widget.c
+    src/ui.c
     src/st.c
     src/st_widget.c
     ${RESOURCE_FILES}

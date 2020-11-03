@@ -66,7 +66,10 @@ struct widget {
     int min_height, max_height;
     int left, top, width, height;
     widget_cls *cls;
-    void *data;
+    union {
+        void *data;
+        int data_int;
+    };
 };
 
 /*

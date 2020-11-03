@@ -14,6 +14,7 @@
 #include "widget.h"
 #include "st_widget.h"
 #include "st.h"
+#include "ui.h"
 
 #define FRAME_TIME 30
 
@@ -144,11 +145,16 @@ int main(int argc, char* argv[]) {
     char *dirpath = dirname(path);
 
     terminal_open();
-    terminal_setf(
+    terminal_set(
         "window: size=80x40, cellsize=auto, resizeable=true, title='TERSH';"
         "font: /Users/caseyduncan/Library/Fonts/DejaVu Sans Mono for Powerline.ttf, size=13;"
-        "input: filter={keyboard}",
-        dirpath
+        "input: filter={keyboard}"
+    );
+
+    int cellh = terminal_state(TK_CELL_HEIGHT);
+    terminal_setf(
+        "0xE000: %s/../Resources/spinner.png, size=64x64, resize=%dx%d, resize-filter=bicubic;",
+        dirpath, cellh, cellh
     );
 
     int term_order = 0;
@@ -275,24 +281,14 @@ int main(int argc, char* argv[]) {
             vec_str_t child_argv = NULL_VEC;
 
             char *cmd = parse_cmd(&le.buf, &child_argv);
-            lineedit_clear(line_ed_w);
             if (cmd == NULL) break;
             if (*cmd) {
                 Term *term = calloc(1, sizeof(Term));
                 tnew(term, term_container->width, terminal_state(TK_HEIGHT));
                 ttynew(term, NULL, cmd, "/tmp/term.out", child_argv.data);
-                widget_new((widget_t){
-                    .cls = &st_widget,
-                    .data = term,
-                    .parent = term_container,
-                    .anchor = ANCHOR_BOTTOM,
-                    .order = --term_order,
-                    .min_height = 1,
-                    .max_height = 1,
-                    .min_width = 10,
-                    .max_width = -1,
-                });
+                job_widget_new(term_container, --term_order, term, le.buf.data, le.buf.length);
             }
+            lineedit_clear(line_ed_w);
             free(cmd);
         }
 

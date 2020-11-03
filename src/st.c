@@ -598,7 +598,21 @@ on_poll(int fd, void *data, poller_event_t event, int val) {
     ssize_t r = 0;
     switch (event) {
         case POLLER_CHILD_EXIT:
-            t->exitst = val;
+            if (WIFSTOPPED(val)) {
+                t->childstopped = 1;
+            }
+            if (WIFCONTINUED(val)) {
+                t->childstopped = 0;
+            }
+            if (WIFEXITED(val)) {
+                t->childexited = 1;
+                t->childexitst = WEXITSTATUS(val);
+            }
+            if (WIFSIGNALED(val)) {
+                t->childexited = 1;
+                /* exit status as per bash convention */
+                t->childexitst = 128 + WTERMSIG(val);
+            }
             return;
         case POLLER_EVENTS:
             if (val & POLLIN) {

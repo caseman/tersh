@@ -11,6 +11,8 @@ void xclipcopy(void) {}
 void draw_line(Line line, int x1, int y1, int x2) {
     Glyph last = (Glyph){};
     Glyph *this = line;
+    terminal_bkcolor(0xff000000);
+    terminal_color(0xffffffff);
 
     for (int x = x1; x < x2; x++, this++) {
         if (this->mode == ATTR_WDUMMY) continue;
@@ -36,7 +38,6 @@ void xseticontitle(char *p) {}
 void xsettitle(char *p) {}
 void xsetpointermotion(int set) {}
 void xsetsel(char *str) {}
-void xximspot(int x, int y) {}
 
 void st_update(widget_t *w, unsigned int dt) {
     Term *term = widget_data(w, &st_widget);
@@ -148,8 +149,6 @@ st_draw(widget_t *w)
     term->ocy = term->c.y;
     term->lastx = w->left;
     term->lasty = w->top;
-    if (ocx != term->ocx || ocy != term->ocy)
-        xximspot(term->ocx, term->ocy);
 }
 
 widget_cls st_widget = {

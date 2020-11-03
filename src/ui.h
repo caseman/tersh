@@ -97,4 +97,23 @@ parents, or parent's parents to be handled.
 In the case of CTRL+Z, it would ultimately bubble up to the shell widget,
 which will send SIGSTOP
 */
+#include "widget.h"
+#include "st_widget.h"
 
+#ifndef UI_H
+#define UI_H
+
+#define JOB_RUNNING 0
+#define JOB_EXIT_ZERO -1
+#define JOB_EXIT_NONZERO -2
+#define JOB_STOPPED -3
+#define JOB_CMD_ERROR -4
+
+widget_cls label_widget, container_widget, job_spinner_widget, job_widget;
+
+int label_set_text(widget_t *w, wchar_t *s, size_t len);
+void container_set_bkcolor(widget_t *w, int bkcolor);
+void job_spinner_set(widget_t *w, int status);
+widget_t *job_widget_new(widget_t *parent, int order, Term *term, wchar_t *cmd, size_t cmd_len);
+
+#endif

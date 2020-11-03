@@ -229,7 +229,9 @@ typedef struct {
     int iofd;
     int cmdfd;
     pid_t pid;
-    int exitst; /* child proc exit status */
+    int childstopped;
+    int childexited;
+    int childexitst;
     vec_char_t wbuf; /* write buffer */
     int wbuf_offs; /* offset into write buffer */
     int cursorshape;
