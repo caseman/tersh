@@ -204,7 +204,8 @@ int main(int argc, char* argv[]) {
     long long now;
     int dt = 0;
     Term *last_term = NULL;
-    Term *fg_term;
+
+    char *cmd_argv[4] = {"zsh", "-c", NULL, NULL};
 
     while (lineedit_state(line_ed_w) != lineedit_cancelled) {
         // Set an alarm to ensure any blocking i/o eventually
@@ -280,18 +281,19 @@ int main(int argc, char* argv[]) {
         }
 
         if (lineedit_state(line_ed_w) == lineedit_confirmed) {
-            vec_str_t child_argv = NULL_VEC;
-
-            char *cmd = parse_cmd(&le.buf, &child_argv);
-            if (cmd == NULL) break;
-            if (*cmd) {
+            if (le.buf.length) {
+                char cmd[le.buf.length + 1];
+                for (int i = 0; i < le.buf.length; i++) {
+                    cmd[i] = le.buf.data[i];
+                }
+                cmd[le.buf.length] = 0;
+                cmd_argv[2] = cmd;
                 Term *term = calloc(1, sizeof(Term));
                 tnew(term, term_container->width, terminal_state(TK_HEIGHT));
-                ttynew(term, NULL, cmd, "/tmp/term.out", child_argv.data);
+                ttynew(term, NULL, "tersh", "/tmp/term.out", cmd_argv);
                 job_widget_new(term_container, --term_order, term, le.buf.data, le.buf.length);
             }
             lineedit_clear(line_ed_w);
-            free(cmd);
         }
 
         widget_relayout(root_w);
