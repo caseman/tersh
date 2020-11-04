@@ -184,6 +184,7 @@ int main(int argc, char* argv[]) {
     });
 
     widget_t *term_container = widget_new((widget_t){
+        .cls = &container_widget,
         .parent = root_w,
         .anchor = ANCHOR_BOTTOM,
         .order = 1,
@@ -192,6 +193,7 @@ int main(int argc, char* argv[]) {
         .min_width = 10,
         .max_width = -1,
     });
+    container_set_bkcolor(term_container, 0xff000000);
 
     widget_layout(root_w, 0, 0, terminal_state(TK_WIDTH), terminal_state(TK_HEIGHT));
     widget_draw(root_w);

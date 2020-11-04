@@ -25,6 +25,7 @@ void label_layout(widget_t *w) {
 
 void label_draw(widget_t *w) {
     if (!w->data) return;
+    terminal_color(0xffffffff);
     terminal_wprint_ext(w->left, w->top, w->width, w->height, TK_ALIGN_DEFAULT, w->data);
 }
 
@@ -53,6 +54,12 @@ void container_draw(widget_t *w) {
     if (!w->data_int) return;
     terminal_bkcolor(w->data_int);
     terminal_clear_area(w->left, w->top, w->width, w->height);
+    terminal_layer(1);
+    terminal_color(0xff555555);
+    for (int x = w->left; x < w->left + w->width; x++) {
+        terminal_put_ext(x, w->top + w->height - 1, 0, 1, 0x2581, NULL);
+    }
+    terminal_layer(0);
 }
 
 widget_cls container_widget = {
@@ -83,10 +90,12 @@ void job_spinner_draw(widget_t *w) {
         frames = wcslen(spinner_frames);
     }
     wchar_t u = 0;
+    int offy = -1;
     if (w->data_int >= 0) {
         int frame = (w->data_int / spinner_frame_time) % frames;
         terminal_color(0xffffffff);
         u = spinner_frames[frame];
+        offy = 0;
     } else {
         switch (w->data_int) {
             case JOB_EXIT_ZERO:
@@ -107,7 +116,7 @@ void job_spinner_draw(widget_t *w) {
                 break;
         }
     }
-    terminal_put_ext(w->left, w->top, 4, 0, u, NULL);
+    terminal_put_ext(w->left, w->top, 4, offy, u, NULL);
 }
 
 widget_cls job_spinner_widget = {
@@ -149,7 +158,7 @@ widget_t *job_widget_new(widget_t *parent, int order, Term *term, wchar_t *cmd, 
         .max_height = 1,
     });
     if (status == NULL) return NULL;
-    container_set_bkcolor(status, 0xff555555);
+    container_set_bkcolor(status, 0xff333333);
     widget_new((widget_t){
         .cls = &job_spinner_widget,
         .parent = status,
