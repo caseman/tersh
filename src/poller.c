@@ -38,7 +38,7 @@ int poller_poll(int timeout) {
 
     do {
         if (!pollees.length) break;
-        pid = waitpid(-1, &status, WNOHANG);
+        pid = waitpid(-1, &status, WNOHANG | WUNTRACED | WCONTINUED);
         if (pid > 0) {
             p = pollees.data;
             for (i = 0; i < pollees.length; i++, p++) {

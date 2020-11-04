@@ -107,8 +107,8 @@ void job_spinner_draw(widget_t *w) {
                 u = 0x2762;
                 break;
             case JOB_STOPPED:
-                terminal_color(0xffaaaa00);
-                u = 0x270B;
+                terminal_color(0xffffff00);
+                u = 0x25C9;
                 break;
             case JOB_CMD_ERROR:
                 terminal_color(0xffaa0000);
