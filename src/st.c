@@ -139,10 +139,11 @@ xmalloc(size_t len)
 void *
 xrealloc(void *p, size_t len)
 {
-    if ((p = realloc(p, len)) == NULL)
+    void *rp;
+    if ((rp = realloc(p, len)) == NULL)
         die("realloc: %s\n", strerror(errno));
 
-    return p;
+    return rp;
 }
 
 char *
