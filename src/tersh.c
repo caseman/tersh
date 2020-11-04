@@ -293,6 +293,7 @@ int main(int argc, char* argv[]) {
         }
 
         widget_relayout(root_w);
+        terminal_clear();
         widget_draw(root_w);
         terminal_refresh();
     }

@@ -88,10 +88,8 @@ static void place_widget(widget_t *w, int left, int top, int right, int bottom) 
             break;
     }
     /*
-    printf("place %s maxw=%d minw=%d w=%d maxh=%d minh=%d h=%d\n",
-        w->cls->name,
-        w->max_width, w->min_width, w->width,
-        w->max_height, w->min_height, w->height);
+    printf("place %s l=%d t=%d w=%d h=%d\n",
+        w->cls->name, w->left, w->top, w->width, w->height);
     */
     w->flags |= WIDGET_NEEDS_REDRAW;
 }

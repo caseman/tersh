@@ -59,12 +59,11 @@ void st_layout(widget_t *w) {
         printf("resize!\n");
         tresize(term, w->width, term->row);
     }
-    if (term->c.y >= term->nlines) {
-        /* ensure widget encloses cursor */
-        term->nlines = term->c.y + 1;
-    }
-    w->min_height = 1;
     w->max_height = term->nlines;
+    if (term->c.y >= term->nlines && IS_SET(MODE_FOCUSED)) {
+        /* ensure widget encloses cursor when focused */
+        w->max_height = term->c.y + 1;
+    }
 }
 
 void
@@ -87,7 +86,7 @@ st_draw(widget_t *w)
     int moved = term->lastx != w->left || term->lasty != w->top;
     int y = w->top + w->height - 1;
     for (int row = MIN(term->nlines-1, term->row-1); row >= 0 && y >= w->top; row--, y--) {
-        if (!moved && !term->dirty[row]) continue;
+        //if (!moved && !term->dirty[row]) continue;
         term->dirty[row] = 0;
         draw_line(term->line[row], w->left, y, w->left + term->col);
     }
@@ -99,8 +98,9 @@ st_draw(widget_t *w)
     Glyph ocg = term->line[term->ocy][term->ocx];
     int offx = 0, offy = 0;
 
+    /*
     if (!moved) {
-        /* remove old cursor */
+        * remove old cursor *
         if (term->cursorshape > 2) {
             terminal_layer(1);
             terminal_put(term->lastx + ocx, term->lasty + ocy, 0);
@@ -109,7 +109,7 @@ st_draw(widget_t *w)
             terminal_put(term->lastx + ocx, term->lasty + ocy, ocg.u);
         }
     }
-
+    */
     if (term->c.y < w->height && !IS_SET(MODE_HIDE) && !IS_SET(MODE_BLINK) && IS_SET(MODE_FOCUSED)) {
         // TODO handle selection and colors
 
