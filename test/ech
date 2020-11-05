@@ -1,0 +1,7 @@
+#!/usr/bin/env python3
+
+import os
+import sys
+
+while 1:
+    os.write(1, os.read(0, 1))
