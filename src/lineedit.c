@@ -19,6 +19,7 @@ void lineedit_clear(widget_t *w) {
     le->buf.length = 0;
     le->curs = 0;
     le->curs_vis = 1;
+    le->state = lineedit_unchanged;
 }
 
 int lineedit_handle_ev(widget_t *w, int event) {
