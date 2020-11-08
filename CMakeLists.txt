@@ -5,6 +5,11 @@ project(tersh VERSION 0.0 LANGUAGES C)
 set(CMAKE_C_STANDARD 99)
 set(CMAKE_EXPORT_COMPILE_COMMANDS ON)
 
+add_custom_command(OUTPUT tags
+    COMMAND ctags -R .
+    WORKING_DIRECTORY ${CMAKE_SOURCE_DIR}
+)
+
 include_directories(
     include
     src
@@ -32,6 +37,7 @@ add_executable(tersh
     src/st.c
     src/st_widget.c
     ${RESOURCE_FILES}
+    tags
 )
 
 IF(APPLE)
