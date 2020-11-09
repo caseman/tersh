@@ -88,7 +88,6 @@ int run_program(Term *term, struct mrsh_state *state, struct mrsh_program *prog)
     pid_t pid;
     int ret;
     mrsh_program_print(prog);
-    // struct mrsh_state_priv *priv = state_get_priv(state);
     switch (pid = st_fork_pty(term)) {
     case -1:
         return -1;
