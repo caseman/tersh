@@ -97,23 +97,6 @@ int run_program(Term *term, struct mrsh_state *state, struct mrsh_program *prog)
         ret = mrsh_run_program(state, prog);
         mrsh_destroy_terminated_jobs(state);
         exit(ret >= 0 ? ret : 127);
-        /*
-        priv->child = true;
-        process_create(state, getpid());
-        struct mrsh_context ctx = { .state = state };
-
-        for (size_t i = 0; i < prog->body.len; ++i) {
-            struct mrsh_command_list *list = prog->body.data[i];
-            if (ctx.job == NULL) {
-                ctx.job = job_create(state, &list->node);
-            }
-            int ret = run_and_or_list(&ctx, list->and_or_list);
-            if (ret != 0) {
-                exit(ret > 0 ? ret : 127);
-            }
-        }
-        exit(0);
-        */
     }
     return 0;
 }
