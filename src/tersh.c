@@ -64,6 +64,11 @@ char *parse_cmd(vec_wchar_t *input, vec_str_t *argv) {
     return cmd;
 }
 
+/* Ensure exit() calls in child processes do not have side affects */
+extern void exit(int status) {
+    _exit(status);
+}
+
 long long time_millis(void)
 {
     struct timeval tv;
@@ -95,7 +100,7 @@ int run_program(Term *term, struct mrsh_state *state, struct mrsh_program *prog)
         // child
         ret = mrsh_run_program(state, prog);
         mrsh_destroy_terminated_jobs(state);
-        exit(ret >= 0 ? ret : 127);
+        _exit(ret >= 0 ? ret : 127);
     }
     return 0;
 }
@@ -110,7 +115,6 @@ int main(int argc, char* argv[]) {
         "font: /Users/caseyduncan/Library/Fonts/DejaVu Sans Mono for Powerline.ttf, size=13;"
         "input: filter={keyboard}"
     );
-    atexit(terminal_close); // ensure this is called for child processes
 
     int cellh = terminal_state(TK_CELL_HEIGHT);
     terminal_setf(
@@ -291,5 +295,6 @@ int main(int argc, char* argv[]) {
         terminal_refresh();
     }
 
+    terminal_close();
     return 0;
 }
