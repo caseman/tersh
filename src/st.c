@@ -25,7 +25,6 @@
 #include "st.h"
 #include "st_config.h"
 #include "st_widget.h"
-#include "poller.h"
 
 #if   defined(__linux)
  #include <pty.h>
@@ -593,8 +592,8 @@ execsh(char *cmd, char **args)
     _exit(1);
 }
 
-static void
-on_poll(int fd, void *data, poller_event_t event, int val) {
+void
+st_on_poll(int fd, void *data, poller_event_t event, int val) {
     Term *t = data;
     ssize_t r = 0;
     switch (event) {
@@ -636,7 +635,7 @@ on_poll(int fd, void *data, poller_event_t event, int val) {
                     close(t->cmdfd);
                     t->cmdfd = -1;
                 }
-                if (t->iofd != -1) {
+                if (t->iofd > 1) {
                     close(t->iofd);
                     t->iofd = -1;
                 }
@@ -745,11 +744,64 @@ ttynew(Term *term, char *line, char *cmd, char *out, char **args)
         close(s);
         term->cmdfd = m;
         ttyresize(term, term->col, term->row);
-        poller_add(m, term->pid, term, on_poll);
+        poller_add(m, term->pid, term, st_on_poll);
         break;
     }
     return term->cmdfd;
 }
+
+int st_fork_pty(Term *term) {
+    int m, s;
+
+    // seems to work fine on linux, openbsd and freebsd
+    if (openpty(&m, &s, NULL, NULL, NULL) < 0) {
+        st_perror(term, "tersh: openpty failed");
+        return -1;
+    }
+    assert(m > 2 && s > 2); // Guard against std fds being accidentally closed
+    int flags = fcntl(m, F_GETFL, 0);
+    if (fcntl(m, F_SETFL, flags | O_CLOEXEC) < 0) {
+        st_perror(term, "tersh: fcntl failed to set pty flags");
+    }
+
+    switch (term->pid = fork()) {
+    case -1:
+        st_perror(term, "tersh: fork failed");
+        close(s);
+        close(m);
+        return -1;
+    case 0:
+        // child
+        if (term->iofd > 0) {
+            close(term->iofd);
+        }
+        if (dup2(s, 0) < 0 ||
+            dup2(s, 1) < 0 ||
+            dup2(s, 2) < 0) {
+            // This may not be visible
+            perror("tersh: dup2 failed, unable to use terminal");
+            exit(1);
+        }
+        if (setsid() < 0) { // create a new process group
+            perror("tersh: setsid failed");
+        }
+        if (ioctl(s, TIOCSCTTY, NULL) < 0) {
+            perror("tersh: ioctl TIOCSCTTY failed");
+        }
+        close(s);
+        close(m);
+        break;
+    default:
+        // parent
+        close(s);
+        term->cmdfd = m;
+        ttyresize(term, term->col, term->row);
+        poller_add(m, term->pid, term, st_on_poll);
+        break;
+    }
+    return term->pid;
+}
+
 
 size_t
 term_read(Term *term)
@@ -2410,6 +2462,23 @@ twrite(Term *term, const char *buf, int buflen, int show_ctrl)
         tputc(term, u);
     }
     return n;
+}
+
+void
+st_print(Term *term, const char *s, int len) {
+    twrite(term, s, len, 0);
+}
+
+void
+st_perror(Term *term, char *s) {
+    char *err = strerror(errno);
+    if (s) {
+        twrite(term, s, strlen(s), 0);
+        tputc(term, ':');
+        tputc(term, ' ');
+    }
+    twrite(term, err, strlen(err), 0);
+    tputc(term, '\n');
 }
 
 void

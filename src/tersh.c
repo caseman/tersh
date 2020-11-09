@@ -6,7 +6,29 @@
 #include <unistd.h>
 #include <libgen.h>
 #include <sys/time.h>
+#include <unistd.h>
+#include <fcntl.h>
+#include <sys/ioctl.h>
+
+#if   defined(__linux)
+ #include <pty.h>
+#elif defined(__OpenBSD__) || defined(__NetBSD__) || defined(__APPLE__)
+ #include <util.h>
+#elif defined(__FreeBSD__) || defined(__DragonFly__)
+ #include <libutil.h>
+#endif
+
+#include <mrsh/ast.h>
+#include <mrsh/buffer.h>
+#include <mrsh/builtin.h>
+#include <mrsh/entry.h>
+#include <mrsh/parser.h>
+#include <mrsh/shell.h>
+#include <shell/task.h>
+#include <shell/process.h>
+#include <shell/job.h>
 #include "BearLibTerminal.h"
+
 //#include "tersh.h"
 #include "lineedit.h"
 #include "vec.h"
@@ -17,6 +39,8 @@
 #include "ui.h"
 
 #define FRAME_TIME 30
+
+extern char **environ;
 
 char *parse_cmd(vec_wchar_t *input, vec_str_t *argv) {
     argv->length = 0;
@@ -60,6 +84,40 @@ void handle_sigalrm() {
     alarm_time = time_millis();
 }
 
+int run_program(Term *term, struct mrsh_state *state, struct mrsh_program *prog) {
+    pid_t pid;
+    int ret;
+    mrsh_program_print(prog);
+    // struct mrsh_state_priv *priv = state_get_priv(state);
+    switch (pid = st_fork_pty(term)) {
+    case -1:
+        return -1;
+    case 0:
+        // child
+        ret = mrsh_run_program(state, prog);
+        mrsh_destroy_terminated_jobs(state);
+        exit(ret >= 0 ? ret : 127);
+        /*
+        priv->child = true;
+        process_create(state, getpid());
+        struct mrsh_context ctx = { .state = state };
+
+        for (size_t i = 0; i < prog->body.len; ++i) {
+            struct mrsh_command_list *list = prog->body.data[i];
+            if (ctx.job == NULL) {
+                ctx.job = job_create(state, &list->node);
+            }
+            int ret = run_and_or_list(&ctx, list->and_or_list);
+            if (ret != 0) {
+                exit(ret > 0 ? ret : 127);
+            }
+        }
+        exit(0);
+        */
+    }
+    return 0;
+}
+
 int main(int argc, char* argv[]) {
     char *path = strdup(argv[0]);
     char *dirpath = dirname(path);
@@ -70,6 +128,7 @@ int main(int argc, char* argv[]) {
         "font: /Users/caseyduncan/Library/Fonts/DejaVu Sans Mono for Powerline.ttf, size=13;"
         "input: filter={keyboard}"
     );
+    atexit(terminal_close); // ensure this is called for child processes
 
     int cellh = terminal_state(TK_CELL_HEIGHT);
     terminal_setf(
@@ -119,13 +178,18 @@ int main(int argc, char* argv[]) {
     widget_draw(root_w);
     terminal_refresh();
 
+    struct mrsh_state *state = mrsh_state_create();
+    if (!mrsh_populate_env(state, environ)) {
+        return 1;
+    }
+
+    struct mrsh_buffer parser_buffer = {0};
+    struct mrsh_parser *parser = mrsh_parser_with_buffer(&parser_buffer);
 
     long long last_time = time_millis();
     long long now;
     int dt = 0;
     Term *last_term = NULL;
-
-    char *cmd_argv[4] = {"zsh", "-c", NULL, NULL};
 
     while (lineedit_state(line_ed_w) != lineedit_cancelled) {
         // Set an alarm to ensure any blocking i/o eventually
@@ -202,16 +266,39 @@ int main(int argc, char* argv[]) {
 
         if (lineedit_state(line_ed_w) == lineedit_confirmed) {
             if (le.buf.length) {
+                Term *term = calloc(1, sizeof(Term));
+                tnew(term, term_container->width, terminal_state(TK_HEIGHT));
+                term->mode = MODE_UTF8 | MODE_WRAP | MODE_CRLF;
                 char cmd[le.buf.length + 1];
                 for (int i = 0; i < le.buf.length; i++) {
                     cmd[i] = le.buf.data[i];
                 }
                 cmd[le.buf.length] = 0;
-                cmd_argv[2] = cmd;
-                Term *term = calloc(1, sizeof(Term));
-                tnew(term, term_container->width, terminal_state(TK_HEIGHT));
-                ttynew(term, NULL, "tersh", "/tmp/term.out", cmd_argv);
+                mrsh_buffer_append(&parser_buffer, cmd, le.buf.length);
+                mrsh_parser_reset(parser);
                 job_widget_new(term_container, --term_order, term, le.buf.data, le.buf.length);
+                struct mrsh_program *prog = mrsh_parse_line(parser);
+                if (prog != NULL) {
+                    int r = run_program(term, state, prog);
+                    if (r == -1) {
+                        term->childexited = 1;
+                        term->childexitst = 1;
+                    }
+                } else {
+                    char err_msg[256];
+                    int err_len;
+                    struct mrsh_position err_pos;
+                    const char *parser_err_msg = mrsh_parser_error(parser, &err_pos);
+                    if (parser_err_msg != NULL) {
+                        err_len = snprintf(err_msg, sizeof(err_msg),
+                                "%s:%d:%d -~- %s\n",
+                                cmd, err_pos.line, err_pos.column, parser_err_msg);
+                    } else {
+                        err_len = snprintf(err_msg, sizeof(err_msg),
+                                "%s -~- unknown error\n", cmd);
+                    }
+                    st_print(term, err_msg, err_len);
+                }
             }
             lineedit_clear(line_ed_w);
         }
@@ -222,6 +309,5 @@ int main(int argc, char* argv[]) {
         terminal_refresh();
     }
 
-    terminal_close();
     return 0;
 }

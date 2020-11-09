@@ -7,6 +7,7 @@
 #include <stdint.h>
 #include <sys/types.h>
 #include "vec.h"
+#include "poller.h"
 
 #ifndef ST_H
 #define ST_H
@@ -253,11 +254,16 @@ void tresize(Term *term, int, int);
 void tsetdirtattr(Term *term, int);
 void ttyhangup(Term *term);
 int ttynew(Term *term, char *, char *, char *, char **);
+int st_fork_pty(Term *term);
 size_t term_read(Term *term);
 void ttyresize(Term *term, int, int);
 void ttywrite(Term *term, const char *, size_t, int);
+void st_print(Term *term, const char *s, int len);
+void st_perror(Term *term, char *s);
 void st_set_focused(Term *term, int);
 int st_set_cursor(Term *term, int cursor);
+
+void st_on_poll(int fd, void *data, poller_event_t event, int val);
 
 void resettitle(Term *term);
 
