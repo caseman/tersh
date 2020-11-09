@@ -103,8 +103,12 @@ void job_spinner_draw(widget_t *w) {
                 u = 0x2714;
                 break;
             case JOB_EXIT_NONZERO:
-                terminal_color(0xffaa0000);
+                terminal_color(0xffcc0000);
                 u = 0x2762;
+                break;
+            case JOB_EXIT_SIGNAL:
+                terminal_color(0xffffff00);
+                u = 0x21AF;
                 break;
             case JOB_STOPPED:
                 terminal_color(0xffffff00);
@@ -188,8 +192,10 @@ void job_update(widget_t *w, unsigned int dt) {
     if (term->childexited) {
         if (term->childexitst == 0) {
             job_spinner_set(spinner, JOB_EXIT_ZERO);
-        } else {
+        } else if (term->childexitst < 128) {
             job_spinner_set(spinner, JOB_EXIT_NONZERO);
+        } else {
+            job_spinner_set(spinner, JOB_EXIT_SIGNAL);
         }
     } else if (term->childstopped) {
         job_spinner_set(spinner, JOB_STOPPED);

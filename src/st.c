@@ -2466,6 +2466,9 @@ twrite(Term *term, const char *buf, int buflen, int show_ctrl)
 
 void
 st_print(Term *term, const char *s, int len) {
+    if (len < 0) {
+        len = strlen(s);
+    }
     twrite(term, s, len, 0);
 }
 

@@ -106,8 +106,9 @@ which will send SIGSTOP
 #define JOB_RUNNING 0
 #define JOB_EXIT_ZERO -1
 #define JOB_EXIT_NONZERO -2
-#define JOB_STOPPED -3
-#define JOB_CMD_ERROR -4
+#define JOB_EXIT_SIGNAL -3
+#define JOB_STOPPED -4
+#define JOB_CMD_ERROR -5
 
 widget_cls label_widget, container_widget, job_spinner_widget, job_widget;
 
