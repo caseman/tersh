@@ -255,6 +255,7 @@ void tsetdirtattr(Term *term, int);
 void ttyhangup(Term *term);
 int ttynew(Term *term, char *, char *, char *, char **);
 int st_fork_pty(Term *term);
+void st_set_child_status(Term *term, int status);
 size_t term_read(Term *term);
 void ttyresize(Term *term, int, int);
 void ttywrite(Term *term, const char *, size_t, int);
@@ -263,7 +264,7 @@ void st_perror(Term *term, char *s);
 void st_set_focused(Term *term, int);
 int st_set_cursor(Term *term, int cursor);
 
-void st_on_poll(int fd, void *data, poller_event_t event, int val);
+void st_on_poll(int fd, void *data, int events);
 
 void resettitle(Term *term);
 

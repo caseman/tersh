@@ -593,58 +593,56 @@ execsh(char *cmd, char **args)
 }
 
 void
-st_on_poll(int fd, void *data, poller_event_t event, int val) {
+st_set_child_status(Term *term, int status) {
+    if (WIFSTOPPED(status)) {
+        term->childstopped = 1;
+    }
+    if (WIFCONTINUED(status)) {
+        term->childstopped = 0;
+    }
+    if (WIFEXITED(status)) {
+        term->childexited = 1;
+        term->childexitst = WEXITSTATUS(status);
+    }
+    if (WIFSIGNALED(status)) {
+        term->childexited = 1;
+        /* exit status as per bash convention */
+        term->childexitst = 128 + WTERMSIG(status);
+    }
+}
+
+void
+st_on_poll(int fd, void *data, int events) {
     Term *t = data;
     ssize_t r = 0;
-    switch (event) {
-        case POLLER_CHILD_EXIT:
-            if (WIFSTOPPED(val)) {
-                t->childstopped = 1;
-            }
-            if (WIFCONTINUED(val)) {
-                t->childstopped = 0;
-            }
-            if (WIFEXITED(val)) {
-                t->childexited = 1;
-                t->childexitst = WEXITSTATUS(val);
-            }
-            if (WIFSIGNALED(val)) {
-                t->childexited = 1;
-                /* exit status as per bash convention */
-                t->childexitst = 128 + WTERMSIG(val);
-            }
-            return;
-        case POLLER_EVENTS:
-            if (val & POLLIN) {
-                r = term_read(t);
-                if (r < 0) return;
-            }
-            if ((val & POLLOUT) && t->wbuf.length) {
-                int n = t->wbuf.length - t->wbuf_offs;
-                r = write_buf(t, t->wbuf.data + t->wbuf_offs, n);
-                if (r < 0) return;
-                if (r == n) {
-                    t->wbuf.length = 0;
-                    t->wbuf_offs = 0;
-                } else {
-                    t->wbuf_offs += r;
-                }
-            }
-            if ((val & POLLHUP) && !r) {
-                if (t->cmdfd != -1) {
-                    close(t->cmdfd);
-                    t->cmdfd = -1;
-                }
-                if (t->iofd > 1) {
-                    close(t->iofd);
-                    t->iofd = -1;
-                }
-                if (t->wbuf.length) {
-                    fprintf(stderr, "pty HUP with %d bytes unwritten\n", t->wbuf.length);
-                }
-                vec_deinit(&t->wbuf);
-            }
-            break;
+    if (events & POLLIN) {
+        r = term_read(t);
+        if (r < 0) return;
+    }
+    if ((events & POLLOUT) && t->wbuf.length) {
+        int n = t->wbuf.length - t->wbuf_offs;
+        r = write_buf(t, t->wbuf.data + t->wbuf_offs, n);
+        if (r < 0) return;
+        if (r == n) {
+            t->wbuf.length = 0;
+            t->wbuf_offs = 0;
+        } else {
+            t->wbuf_offs += r;
+        }
+    }
+    if ((events & POLLHUP) && !r) {
+        if (t->cmdfd != -1) {
+            close(t->cmdfd);
+            t->cmdfd = -1;
+        }
+        if (t->iofd > 1) {
+            close(t->iofd);
+            t->iofd = -1;
+        }
+        if (t->wbuf.length) {
+            fprintf(stderr, "pty HUP with %d bytes unwritten\n", t->wbuf.length);
+        }
+        vec_deinit(&t->wbuf);
     }
 }
 
@@ -744,7 +742,7 @@ ttynew(Term *term, char *line, char *cmd, char *out, char **args)
         close(s);
         term->cmdfd = m;
         ttyresize(term, term->col, term->row);
-        poller_add(m, term->pid, term, st_on_poll);
+        poller_add(m, term, st_on_poll);
         break;
     }
     return term->cmdfd;
@@ -764,7 +762,7 @@ int st_fork_pty(Term *term) {
         st_perror(term, "tersh: fcntl failed to set pty flags");
     }
 
-    switch (term->pid = fork()) {
+    switch (term->pid = 0) { // term->pid = fork()) {
     case -1:
         st_perror(term, "tersh: fork failed");
         close(s);
@@ -782,21 +780,23 @@ int st_fork_pty(Term *term) {
             perror("tersh: dup2 failed, unable to use terminal");
             exit(1);
         }
+        /*
         if (setsid() < 0) { // create a new process group
             perror("tersh: setsid failed");
         }
         if (ioctl(s, TIOCSCTTY, NULL) < 0) {
             perror("tersh: ioctl TIOCSCTTY failed");
         }
-        close(s);
-        close(m);
-        break;
+        */
+        //close(s);
+        //close(m);
+        //break;
     default:
         // parent
         close(s);
         term->cmdfd = m;
         ttyresize(term, term->col, term->row);
-        poller_add(m, term->pid, term, st_on_poll);
+        poller_add(m, term, st_on_poll);
         break;
     }
     return term->pid;

@@ -6,24 +6,22 @@
 
 struct pollee {
     int fd;
-    pid_t pid;
     void *data;
     poller_cb cb;
-    int exited;
 };
 
 vec_t(struct pollee) pollees = NULL_VEC;
 
-int poller_add(int fd, pid_t pid, void* data, poller_cb cb) {
+int poller_add(int fd, void* data, poller_cb cb) {
     int err;
     assert(cb);
-    err = vec_push(&pollees, ((struct pollee){ fd, pid, data, cb }));
+    err = vec_push(&pollees, ((struct pollee){ fd, data, cb }));
     return err;
 }
 
 void *poller_getfg() {
     for (int i = pollees.length - 1; i >= 0; i--) {
-        if (!pollees.data[i].exited && pollees.data[i].fd >= 0) {
+        if (pollees.data[i].fd >= 0) {
             return pollees.data[i].data;
         }
     }
@@ -31,43 +29,18 @@ void *poller_getfg() {
 }
 
 int poller_poll(int timeout) {
-    int i, status, retval, count;
-    pid_t pid;
+    int i, retval, count;
     struct pollfd pollfds[pollees.length];
     struct pollee *p;
 
-    do {
-        if (!pollees.length) break;
-        pid = waitpid(-1, &status, WNOHANG | WUNTRACED | WCONTINUED);
-        if (pid > 0) {
-            p = pollees.data;
-            for (i = 0; i < pollees.length; i++, p++) {
-                if (pid == p->pid) {
-                    if (WIFEXITED(status) || WIFSIGNALED(status)) {
-                        p->exited = 1;
-                    }
-                    p->cb(p->fd, p->data, POLLER_CHILD_EXIT, status);
-                    break;
-                }
-            }
-        }
-        if (pid < 0) {
-            if (errno == ECHILD) {
-                // No child processes
-                break;
-            }
-            return pid;
-        }
-    } while (pid > 0);
-
-    // Prune closed fds with dead pids
+    // Prune closed fds
     for (i = pollees.length - 1; i >= 0; i--) {
-        if (pollees.data[i].fd < 0 && pollees.data[i].exited) {
+        if (pollees.data[i].fd < 0) {
             vec_del(&pollees, i);
         }
     }
 
-    for (i = 0; i < pollees.length; i++, p++) {
+    for (i = 0; i < pollees.length; i++) {
         pollfds[i].fd = pollees.data[i].fd;
         pollfds[i].events = POLLIN | POLLOUT;
         pollfds[i].revents = 0;
@@ -77,8 +50,7 @@ int poller_poll(int timeout) {
     if (retval <= 0) return retval;
 
     count = retval;
-    p = pollees.data;
-    for (i = 0; i < pollees.length; i++, p++) {
+    for (i = 0, p = pollees.data; i < pollees.length; i++, p++) {
         short revents = pollfds[i].revents;
         if (revents) {
             /*
@@ -94,7 +66,7 @@ int poller_poll(int timeout) {
                 // fd was closed somewhere, mark it closed
                 p->fd = -p->fd;
             }
-            p->cb(p->fd, p->data, POLLER_EVENTS, revents);
+            p->cb(p->fd, p->data, revents);
             if (--count == 0) break;
         }
     }
