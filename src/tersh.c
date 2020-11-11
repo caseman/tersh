@@ -361,23 +361,22 @@ int main(int argc, char* argv[]) {
                             fprintf(stderr, "failed to create program thread: %s\n",
                                     strerror(err));
                         }
-                        st_set_child_status(term, 1);
+                        st_set_child_status(term, 1 << 8);
                     }
                 } else {
-                    char err_msg[256];
-                    int err_len;
                     struct mrsh_position err_pos;
                     const char *parser_err_msg = mrsh_parser_error(parser, &err_pos);
                     if (parser_err_msg != NULL) {
-                        err_len = snprintf(err_msg, sizeof(err_msg),
-                                "%s:%d:%d -~- %s\n",
-                                cmd, err_pos.line, err_pos.column, parser_err_msg);
+                        char err_msg[256];
+                        int err_len = snprintf(err_msg, sizeof(err_msg),
+                                "error in command:%d:%d\n\e[0;31m",
+                                err_pos.line, err_pos.column);
+                        st_print(term, err_msg, err_len);
+                        st_print(term, parser_err_msg, -1);
                     } else {
-                        err_len = snprintf(err_msg, sizeof(err_msg),
-                                "%s -~- unknown error\n", cmd);
+                        st_print(term, "\e[0;31munknown error in command", -1);
                     }
-                    st_print(term, err_msg, err_len);
-                    st_set_child_status(term, 1);
+                    st_set_child_status(term, 1 << 8);
                 }
             }
             lineedit_clear(line_ed_w);
