@@ -3,4 +3,4 @@
 	url = git@github.com:caseman/vtparse.git
 [submodule "lib/mrsh"]
 	path = lib/mrsh
-	url = https://github.com/emersion/mrsh.git
+	url = git@github.com:caseman/mrsh.git

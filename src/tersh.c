@@ -43,15 +43,15 @@
 #define FRAME_TIME 30
 
 struct program_ctx {
-    pthread_mutex_t *mutex;
     Term *term;
-    struct mrsh_state *mrsh_state;
     struct mrsh_program *mrsh_prog;
     bool started;
-    bool finished;
+    bool returned;
     int status;
 };
 
+struct mrsh_state *mrsh_state;
+pthread_mutex_t mrsh_mutex = PTHREAD_MUTEX_INITIALIZER;
 widget_t *root_w = NULL;
 widget_t *line_ed_w = NULL;
 bool running = true;
@@ -82,6 +82,19 @@ void atfork_child() {
     }
 }
 
+typedef int (*setpgid_fn)(pid_t, pid_t);
+
+/* Ensure mrsh cannot change our pgid, which breaks atfork_child */
+extern int setpgid(pid_t pid, pid_t pgid) {
+    if (getpid() == main_pid) {
+        /* Block change on main tersh process */
+        errno = EPERM;
+        return -1;
+    }
+    setpgid_fn sys_setpgid = dlsym(RTLD_NEXT, "setpgid");
+    return sys_setpgid(pid, pgid);
+}
+
 long long time_millis(void)
 {
     struct timeval tv;
@@ -101,6 +114,7 @@ static void poll_events(bool delay) {
     long long now;
     static int dt = 0;
     static Term *last_term = NULL;
+    Term *fg_term;
 
     if (last_time == 0) {
         last_time = time_millis();
@@ -120,7 +134,13 @@ static void poll_events(bool delay) {
         dt = 0;
     }
 
-    Term *fg_term = poller_getfg();
+    struct mrsh_job *fg_job = job_get_foreground(mrsh_state);
+    // if (fg_job) dprintf(orig_fds[1], "FG %p data=%p\n", fg_job, fg_job->data);
+    if (fg_job != NULL && fg_job->data != NULL) {
+        fg_term = fg_job->data;
+    } else {
+        fg_term = NULL;
+    }
     if (fg_term != last_term) {
         if (last_term) st_set_focused(last_term, 0);
         if (fg_term) st_set_focused(fg_term, 1);
@@ -170,6 +190,26 @@ static void poll_events(bool delay) {
     }
 }
 
+void poll_jobs() {
+    if (pthread_mutex_trylock(&mrsh_mutex)) return;
+    struct mrsh_job **jobs = mrsh_poll_jobs(mrsh_state);
+    if (jobs != NULL) {
+        for (int i = 0; jobs[i] != NULL; i++) {
+            dprintf(orig_fds[1], "POLLED JOB %p\n", jobs[i]);
+            Term *term = jobs[i]->data;
+            if (jobs[i]->last_status >= 0) {
+                st_set_child_status(term, jobs[i]->last_status);
+            } else if (jobs[i]->last_status == TASK_STATUS_STOPPED) {
+                term->childstopped = 1;
+            } else if (jobs[i]->last_status == TASK_STATUS_WAIT) {
+                term->childstopped = 0;
+            }
+        }
+        free(jobs);
+    }
+    pthread_mutex_unlock(&mrsh_mutex);
+}
+
 static void refresh() {
     widget_relayout(root_w);
     terminal_clear();
@@ -206,10 +246,17 @@ static int init_program_pty(struct program_ctx *prog) {
     return 0;
 }
 
-static void cleanup_program(struct program_ctx *prog) {
-    assert(prog->started && prog->finished);
+static void update_program(struct program_ctx *prog) {
+    if (!prog->started) return;
+    if (pthread_mutex_trylock(&mrsh_mutex)) return;
+    if (!prog->returned) {
+        pthread_mutex_unlock(&mrsh_mutex);
+        return;
+    }
     poll_events(0); // Ensure all data is read
-    st_set_child_status(prog->term, prog->status);
+    if (prog->status >= 0) {
+        st_set_child_status(prog->term, prog->status);
+    }
     for (int i = 0; i <= 2; i++) {
         close(i);
         if (dup2(orig_fds[i], i) < 0) {
@@ -217,29 +264,22 @@ static void cleanup_program(struct program_ctx *prog) {
         }
     }
     prog->started = false;
+    pthread_mutex_unlock(&mrsh_mutex);
 }
 
 static void *run_program_thread(void *data) {
     struct program_ctx *prog = data;
-    int err = pthread_mutex_lock(prog->mutex);
+    int err = pthread_mutex_lock(&mrsh_mutex);
     if (err) {
         fprintf(stderr, "tersh: failed to get program lock: %s\n", strerror(err));
-        prog->finished = true;
+        prog->returned = true;
         pthread_exit(NULL);
     }
-    prog->status = mrsh_run_program(prog->mrsh_state, prog->mrsh_prog);
-    mrsh_destroy_terminated_jobs(prog->mrsh_state);
-    prog->finished = true;
-    pthread_mutex_unlock(prog->mutex);
+    mrsh_state->job_data = prog->term;
+    prog->status = mrsh_run_program(mrsh_state, prog->mrsh_prog);
+    prog->returned = true;
+    pthread_mutex_unlock(&mrsh_mutex);
     pthread_exit(NULL);
-}
-
-static bool program_finished(struct program_ctx *prog) {
-    if (!prog->started) return false;
-    if (pthread_mutex_trylock(prog->mutex)) return false;
-    int finished = prog->finished;
-    pthread_mutex_unlock(prog->mutex);
-    return finished;
 }
 
 void handle_sigalrm() {
@@ -259,6 +299,26 @@ int main(int argc, char* argv[]) {
     char *path = strdup(argv[0]);
     char *dirpath = dirname(path);
 
+    /* init mrsh */
+    mrsh_state = mrsh_state_create();
+    mrsh_state->options |= MRSH_OPT_MONITOR;
+    mrsh_state->interactive = true;
+    state_get_priv(mrsh_state)->job_control = true;
+    if (!mrsh_populate_env(mrsh_state, environ)) {
+        return 1;
+    }
+    /*
+    signal(SIGTTIN, SIG_IGN);
+    if (!mrsh_set_job_control(mrsh_state, true)) {
+        return 1;
+    }
+    */
+
+    struct mrsh_buffer parser_buffer = {0};
+    struct mrsh_parser *parser = mrsh_parser_with_buffer(&parser_buffer);
+    struct program_ctx program = {};
+
+    /* init BearLibTerminal */
     terminal_open();
     terminal_set(
         "window: size=80x40, cellsize=auto, resizeable=true, title='TERSH';"
@@ -314,21 +374,10 @@ int main(int argc, char* argv[]) {
     widget_draw(root_w);
     terminal_refresh();
 
-    struct mrsh_state *state = mrsh_state_create();
-    // state->options |= MRSH_OPT_MONITOR | MRSH_OPT_XTRACE;
-    if (!mrsh_populate_env(state, environ)) {
-        return 1;
-    }
-
-    struct mrsh_buffer parser_buffer = {0};
-    struct mrsh_parser *parser = mrsh_parser_with_buffer(&parser_buffer);
-    struct program_ctx program = {};
-
     while (running && lineedit_state(line_ed_w) != lineedit_cancelled) {
         poll_events(true);
-        if (program_finished(&program)) {
-            cleanup_program(&program);
-        }
+        update_program(&program);
+        poll_jobs();
         if (!program.started && lineedit_state(line_ed_w) == lineedit_confirmed) {
             if (le.buf.length) {
                 Term *term = calloc(1, sizeof(Term));
@@ -345,9 +394,7 @@ int main(int argc, char* argv[]) {
                 struct mrsh_program *prog = mrsh_parse_line(parser);
                 if (prog != NULL) {
                     program = (struct program_ctx){
-                        .mutex = &(pthread_mutex_t)PTHREAD_MUTEX_INITIALIZER,
                         .term = term,
-                        .mrsh_state = state,
                         .mrsh_prog = prog,
                     };
                     int err = init_program_pty(&program);
@@ -384,6 +431,7 @@ int main(int argc, char* argv[]) {
         refresh();
     }
 
+    mrsh_state_destroy(mrsh_state);
     terminal_close();
     return 0;
 }
