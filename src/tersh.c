@@ -77,7 +77,7 @@ void atfork_child() {
         // This will fail if already done, so errors are ignored
         ioctl(STDIN_FILENO, TIOCSCTTY, NULL);
         if (ioctl(STDIN_FILENO, TIOCSWINSZ, &w) < 0) {
-            perror("tersh: inctl(TIOCSWINSZ) failed to set window size");
+            perror("tersh: ioctl(TIOCSWINSZ) failed to set window size");
         }
     }
 }
