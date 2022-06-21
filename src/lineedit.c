@@ -33,6 +33,7 @@ int lineedit_handle_ev(widget_t *w, int event) {
             le->state = lineedit_cancelled;
             return 1;
         case TK_BACKSPACE:
+            if (le->buf.length == 0) return 1;
             if (le->curs >= le->buf.length) {
                 vec_pop(&le->buf);
                 le->curs = le->buf.length;
