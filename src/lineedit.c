@@ -22,9 +22,42 @@ void lineedit_clear(widget_t *w) {
     le->state = lineedit_unchanged;
 }
 
+void lineedit_was_changed(widget_t *w) {
+    lineedit_t *le = widget_data(w, &lineedit_widget);
+    le->state = lineedit_changed;
+    le->curs_vis = 1;
+    w->flags |= WIDGET_NEEDS_REDRAW;
+}
+
 int lineedit_handle_ev(widget_t *w, int event) {
     lineedit_t *le = widget_data(w, &lineedit_widget);
     le->state = lineedit_unchanged;
+    if (terminal_state(TK_CONTROL)) {
+        switch (event) {
+            case TK_D:
+                le->state = lineedit_cancelled;
+                return 1;
+            case TK_E:
+                le->curs = le->buf.length;
+                lineedit_was_changed(w);
+                return 1;
+            case TK_A:
+                le->curs = 0;
+                lineedit_was_changed(w);
+                return 1;
+            case TK_C:
+                lineedit_clear(w);
+                lineedit_was_changed(w);
+                return 1;
+            case TK_K:
+                le->buf.length = le->curs;
+                lineedit_was_changed(w);
+                return 1;
+            case TK_H:
+                event = TK_BACKSPACE;
+                break;
+        }
+    }
     switch (event) {
         case TK_RETURN:
             le->state = lineedit_confirmed;
@@ -41,35 +74,40 @@ int lineedit_handle_ev(widget_t *w, int event) {
                 vec_del(&le->buf, le->curs - 1);
                 le->curs--;
             }
-            le->state = lineedit_changed;
-            break;
+            lineedit_was_changed(w);
+            return 1;
+        case TK_DELETE:
+            if (le->curs < le->buf.length) {
+                vec_del(&le->buf, le->curs);
+            }
+            lineedit_was_changed(w);
+            return 1;
         case TK_LEFT:
             if (le->curs > 0) {
                 le->curs--;
             }
-            le->state = lineedit_changed;
-            break;
+            lineedit_was_changed(w);
+            return 1;
         case TK_RIGHT:
             if (le->curs < le->buf.length) {
                 le->curs++;
             }
-            le->state = lineedit_changed;
-            break;
+            lineedit_was_changed(w);
+            return 1;
+        case TK_HOME:
+            le->curs = 0;
+            lineedit_was_changed(w);
+            return 1;
+        case TK_END:
+            le->curs = le->buf.length;
+            lineedit_was_changed(w);
+            return 1;
         default:
-            if (event == TK_D && terminal_state(TK_CONTROL)) {
-                le->state = lineedit_cancelled;
-                return 1;
-            }
             if (terminal_check(TK_WCHAR)) {
                 lineedit_insert(w, terminal_state(TK_WCHAR));
-                le->state = lineedit_changed;
-                break;
+                lineedit_was_changed(w);
+                return 1;
             }
-    }
-    if (le->state == lineedit_changed) {
-        le->curs_vis = 1;
-        w->flags |= WIDGET_NEEDS_REDRAW;
-        return 1;
     }
     return 0;
 }
